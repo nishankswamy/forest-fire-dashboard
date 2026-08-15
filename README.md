@@ -27,21 +27,6 @@ python3 -m http.server 8080
 
 Opening `index.html` directly via `file://` also works.
 
-## Push to GitHub
-
-Run these **inside this folder** (not your home directory):
-
-```bash
-cd ~/Desktop/forest-fire-dashboard
-git init -b main
-git add -A
-git commit -m "Forest fire detection dashboard"
-git remote add origin https://github.com/<your-username>/forest-fire-dashboard.git
-git push -u origin main
-```
-
-Create the repo on GitHub first, empty — no README, no .gitignore.
-
 ## Connecting real sensors
 
 The dashboard only ever talks to `window.DataSource`. Keep this contract and change the internals of `data-source.js`:

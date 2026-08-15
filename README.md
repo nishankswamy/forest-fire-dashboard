@@ -18,14 +18,49 @@ Extras: 24-hour sparkline per node, RSSI and last-packet age, danger radius draw
 
 ## Run locally
 
-No build step. Any static server works:
+No build step, no dependencies to install. Any static server works:
 
 ```bash
+cd forest-fire-dashboard
 python3 -m http.server 8080
-# open http://localhost:8080
 ```
 
-Opening `index.html` directly via `file://` also works.
+Then open **http://localhost:8080**. Stop the server with `Ctrl-C`.
+
+Opening `index.html` directly via `file://` also works, but serving it over HTTP
+is closer to how it runs on the Pi and avoids browser restrictions on local
+`fetch()` if you later switch to the live data source.
+
+Prefer Node? `npx serve` or `npx http-server -p 8080` do the same job.
+
+### Checking it works
+
+Out of the box the dashboard runs on **simulated data** — no hardware needed.
+Click through in this order to exercise each layer:
+
+1. Map loads with colored node markers over satellite imagery
+2. Click a marker → detail panel fills with temperature, smoke, humidity, battery
+3. Bottom panel → select a node, switch the metric on the 7-day chart
+4. **Simulate fire event** → banner turns red and names the node, danger radius appears
+5. Gateway toggle **OFF** → telemetry pauses, all nodes go offline
+
+If the map is blank grey and the charts are missing, that's the CDN, not your
+code: Leaflet, Chart.js, and the Esri satellite tiles all load from the network,
+so an internet connection is required. Everything else works offline.
+
+### Switching to live data
+
+Once the gateway Pi is running (see [`pi/README.md`](pi/README.md)), change one
+line in `index.html`:
+
+```html
+<script src="data-source.js"></script>       <!-- simulated -->
+<script src="data-source.live.js"></script>  <!-- live, from the gateway -->
+```
+
+If you're loading the dashboard from somewhere other than the Pi itself, set
+`API_BASE` at the top of `data-source.live.js` to the Pi's address, e.g.
+`http://192.168.1.42:5000`.
 
 ## Connecting real sensors
 
@@ -104,10 +139,12 @@ A GitHub Actions workflow (`.github/workflows/deploy.yml`) publishes to GitHub P
 ## Files
 
 ```
-index.html        markup
-style.css         dark theme
-data-source.js    data layer — replace this to go live
-app.js            map, charts, alerts, interaction
+index.html             markup
+style.css              dark theme
+data-source.js         data layer — simulated telemetry (default)
+data-source.live.js    data layer — real telemetry from the gateway Pi
+app.js                 map, charts, alerts, interaction
+pi/                    Raspberry Pi sensor + gateway stack (see pi/README.md)
 ```
 
 ## License

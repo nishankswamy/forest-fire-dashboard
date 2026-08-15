@@ -1,0 +1,7 @@
+pyserial>=3.5
+RPi.GPIO>=0.7.1
+
+# Only needed when SMOKE_MODE=adc or DHT_MODE=dht22.
+# Requires: sudo apt install -y libgpiod2
+adafruit-circuitpython-dht>=4.0
+adafruit-circuitpython-mcp3xxx>=1.4

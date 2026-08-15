@@ -214,6 +214,10 @@
   /* ---------------- node list ---------------- */
   function renderList() {
     const ul = $('nodeList');
+    // The list is rebuilt on every tick. With a handful of nodes that was
+    // invisible; at 50 the list scrolls, and a naive rebuild would throw the
+    // user back to the top every few seconds. Preserve the scroll offset.
+    const scroll = ul.scrollTop;
     ul.innerHTML = '';
     nodes.forEach(n => {
       const li = document.createElement('li');
@@ -226,6 +230,7 @@
       li.onclick = () => select(n.id);
       ul.appendChild(li);
     });
+    ul.scrollTop = scroll;
   }
 
   /* ---------------- interaction ---------------- */

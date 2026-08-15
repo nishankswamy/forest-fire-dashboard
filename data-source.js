@@ -32,17 +32,62 @@
     battLow:   20
   };
 
-  const NODE_DEFS = [
+  // ---- node roster ---------------------------------------------------
+  // The hardware is SIX Raspberry Pis: one gateway (LoRa addr 0, no marker
+  // of its own) and five sensor nodes, N-01..N-05. Those five entries below
+  // mirror pi/common/config.py exactly — same ids, names and coordinates —
+  // so the simulated map and the live map agree on the real nodes.
+  //
+  // Everything past N-05 exists only in simulation, to show the dashboard
+  // holding up at deployment scale. Set SIM_NODES to 5 to see exactly what
+  // the live gateway will serve.
+  const SIM_NODES = 50;
+
+  const REAL_NODE_DEFS = [
     { id: 'N-01', name: 'Node 1 — Ridge East',   dLat:  0.0042, dLng: -0.0058 },
     { id: 'N-02', name: 'Node 2 — Fire Line A',  dLat:  0.0036, dLng:  0.0011 },
     { id: 'N-03', name: 'Node 3 — Watchtower',   dLat:  0.0021, dLng:  0.0062 },
     { id: 'N-04', name: 'Node 4 — Creek Bed',    dLat: -0.0009, dLng: -0.0071 },
-    { id: 'N-05', name: 'Node 5 — Bamboo Belt',  dLat: -0.0004, dLng: -0.0016 },
-    { id: 'N-06', name: 'Node 6 — Dry Slope',    dLat: -0.0018, dLng:  0.0038 },
-    { id: 'N-07', name: 'Node 7 — Trail Head',   dLat: -0.0046, dLng: -0.0040 },
-    { id: 'N-08', name: 'Node 8 — Teak Grove',   dLat: -0.0052, dLng:  0.0024 },
-    { id: 'N-09', name: 'Node 9 — Boundary S',   dLat: -0.0068, dLng:  0.0066 }
+    { id: 'N-05', name: 'Node 5 — Bamboo Belt',  dLat: -0.0004, dLng: -0.0016 }
   ];
+
+  const TERRAIN = [
+    'Dry Slope', 'Trail Head', 'Teak Grove', 'Boundary', 'Saddle',
+    'Gully', 'Plateau', 'Scrub Flat', 'Rock Face', 'Elephant Corridor',
+    'Sal Stand', 'Waterhole', 'Ravine', 'Escarpment', 'Meadow'
+  ];
+  const SECTOR = ['East', 'West', 'North', 'South', 'A', 'B', 'C', 'Upper', 'Lower', 'Far'];
+
+  // Golden-angle (sunflower) placement: even coverage with no clustering,
+  // and fully deterministic, so the map looks identical on every reload.
+  const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
+  const SPREAD = 0.0145;                  // ~1.6 km from the site centre
+
+  function generatedDef(i) {              // i is 0-based, past the real five
+    const num = REAL_NODE_DEFS.length + i + 1;
+    const k = i + 1;
+    // The +4 offset holds the innermost ring away from the site centre so the
+    // generated nodes don't crowd the five real ones sitting near the middle.
+    const count = Math.max(1, SIM_NODES - REAL_NODE_DEFS.length);
+    const radius = SPREAD * Math.sqrt((k + 4) / (count + 4));
+    const angle = k * GOLDEN_ANGLE;
+    return {
+      id: 'N-' + String(num).padStart(2, '0'),
+      name: 'Node ' + num + ' — ' + TERRAIN[i % TERRAIN.length] + ' ' +
+            SECTOR[Math.floor(i / TERRAIN.length) % SECTOR.length],
+      dLat: radius * Math.cos(angle),
+      dLng: radius * Math.sin(angle) * 1.018   // 1° lng is shorter than 1° lat at 11.7 N
+    };
+  }
+
+  const NODE_DEFS = REAL_NODE_DEFS.slice(0, SIM_NODES).concat(
+    Array.from({ length: Math.max(0, SIM_NODES - REAL_NODE_DEFS.length) },
+               (_, i) => generatedDef(i))
+  );
+
+  // Nodes that start offline. A dead node on the map is worth being able
+  // to point at during a demo.
+  const OFFLINE_AT_START = new Set(['N-09', 'N-23', 'N-41']);
 
   const HOUR = 3600e3;
   const HISTORY_HOURS = 7 * 24;
@@ -69,7 +114,11 @@
     const out = [];
     const baseTemp = 23.5 + r() * 3;
     const baseHum  = 54 + r() * 12;
-    let batt = 96 - idx * 1.4;
+    // Cycle the starting charge instead of ramping it with the index —
+    // with 50 nodes a straight ramp would draw a visible battery gradient
+    // across the map. Every 13th node starts low so the amber low-battery
+    // warning is actually represented on screen.
+    let batt = (idx % 13 === 5) ? 24 - (idx % 4) : 96 - (idx % 10) * 1.4;
 
     for (let i = POINTS - 1; i >= 0; i--) {
       const t = now - i * STEP_MIN * 60e3;
@@ -105,7 +154,7 @@
       name: def.name,
       lat: SITE.lat + def.dLat,
       lng: SITE.lng + def.dLng,
-      online: def.id !== 'N-09',            // one node starts offline, on purpose
+      online: !OFFLINE_AT_START.has(def.id),
       rssi: -78 - Math.round(rng(i + 3)() * 30),
       lastSeen: last.t,
       temp: last.temp, smoke: last.smoke, hum: last.hum, batt: last.batt,
@@ -172,7 +221,9 @@
     const a = state[aId], b = state[bId];
     if (!a || !b) return false;
     const dx = (a.lat - b.lat) * 111, dy = (a.lng - b.lng) * 109;
-    return Math.hypot(dx, dy) < 0.85;   // within ~850 m
+    // At 50 nodes the mean spacing is ~390 m, so 750 m picks up roughly the
+    // first ring around the fire — a visible front rather than half the map.
+    return Math.hypot(dx, dy) < 0.75;
   }
 
   function emit() {

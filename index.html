@@ -60,7 +60,19 @@
       </div>
     </div>
     <div id="map"></div>
-    <p class="hint">Click any node marker to inspect its live readings.</p>
+
+    <div class="map-tools">
+      <label class="tgl"><input type="checkbox" id="showTopology" checked> Topology</label>
+      <label class="tgl"><input type="checkbox" id="showRoute" checked> Route to gateway</label>
+      <label class="tgl"><input type="checkbox" id="showRidge" checked> Ridge</label>
+      <span class="map-legend">
+        <i class="lg lg-head"></i>Cluster head
+        <i class="lg lg-backup"></i>Backup
+        <i class="lg lg-min"></i>Local minimum
+      </span>
+    </div>
+    <p class="hint">Click a node to inspect it. Select a cluster head and use
+       <strong>Kill node</strong> to watch its backup take over.</p>
   </section>
 
   <!-- ============ NODE DETAIL ============ -->
@@ -90,12 +102,48 @@
         <div><dt>Last packet</dt><dd id="dSeen">—</dd></div>
       </dl>
 
+      <!-- ---- routing table for this node ---- -->
+      <div class="routing" id="routingBox">
+        <h3>Routing table</h3>
+        <dl class="meta meta-route">
+          <div><dt>Role</dt><dd id="dRole">—</dd></div>
+          <div><dt>Cluster head</dt><dd id="dHead">—</dd></div>
+          <div><dt>Next hop</dt><dd id="dNext">—</dd></div>
+          <div><dt>Hops to gateway</dt><dd id="dHops">—</dd></div>
+          <div><dt>Neighbours</dt><dd id="dNbrs">—</dd></div>
+          <div><dt>Radio duty</dt><dd id="dDuty">—</dd></div>
+        </dl>
+        <div class="route-path" id="dPath">—</div>
+        <div class="route-warn" id="dRouteWarn" hidden></div>
+        <button id="killNode" class="btn btn-ghost btn-danger">Kill node</button>
+      </div>
+
       <div class="spark">
         <h3>Last 24 h — temperature &amp; smoke</h3>
         <canvas id="sparkChart" height="130"></canvas>
       </div>
     </div>
   </aside>
+
+  <!-- ============ NETWORK / PROTOCOL ============ -->
+  <section class="card net-card">
+    <div class="card-head">
+      <h2>Network Protocol</h2>
+      <span class="chip" id="netRound">round —</span>
+    </div>
+
+    <div class="net-grid">
+      <div class="stat"><span class="stat-v" id="nHeads">—</span><span class="stat-k">cluster heads</span></div>
+      <div class="stat"><span class="stat-v" id="nBackups">—</span><span class="stat-k">backups</span></div>
+      <div class="stat"><span class="stat-v" id="nPdr">—</span><span class="stat-k">delivery ratio</span></div>
+      <div class="stat"><span class="stat-v" id="nRetries">—</span><span class="stat-k">ACK retries</span></div>
+      <div class="stat"><span class="stat-v" id="nMinima">—</span><span class="stat-k">local minima</span></div>
+      <div class="stat"><span class="stat-v" id="nPromo">—</span><span class="stat-k">CH promotions</span></div>
+    </div>
+
+    <h3 class="net-sub">Protocol events</h3>
+    <ul class="events" id="eventList"></ul>
+  </section>
 
   <!-- ============ 7 DAY HISTORY ============ -->
   <section class="card history-card">
@@ -126,6 +174,9 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<!-- routing.js must load BEFORE the data source: data-source.js detects it at
+     startup and configures the topology from it. -->
+<script src="routing.js"></script>
 <script src="data-source.js"></script>
 <script src="app.js"></script>
 </body>

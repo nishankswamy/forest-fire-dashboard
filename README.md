@@ -143,9 +143,20 @@ index.html             markup
 style.css              dark theme
 data-source.js         data layer — simulated telemetry (default)
 data-source.live.js    data layer — real telemetry from the gateway Pi
+routing.js             network protocol layer (see ROUTING.md)
 app.js                 map, charts, alerts, interaction
 pi/                    Raspberry Pi sensor + gateway stack (see pi/README.md)
 ```
+
+## Network protocol
+
+The simulator implements clustering with backup cluster heads, routing tables
+with acknowledged forwarding, duty cycling, and greedy geographic routing with
+perimeter recovery from local minima. See [`ROUTING.md`](ROUTING.md).
+
+This layer is **simulation only** — the Pi firmware remains a single-hop star,
+because with 5 nodes all within gateway range multi-hop routing would reduce
+delivery rather than improve it. `ROUTING.md` explains the reasoning.
 
 ## License
 

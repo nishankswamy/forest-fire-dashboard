@@ -89,6 +89,19 @@
   // to point at during a demo.
   const OFFLINE_AT_START = new Set(['N-09', 'N-23', 'N-41']);
 
+  // The gateway Pi. It has no sensors, so it is not in NODE_DEFS — but the
+  // routing layer needs its position, because every route terminates here.
+  const GATEWAY = { id: 'GW', lat: SITE.lat, lng: SITE.lng };
+
+  // A ridge running across the middle of the site. LoRa links may not cross
+  // it, which carves a void in the topology — and a void is what produces the
+  // local-minima problem that greedy geographic forwarding cannot solve on its
+  // own. Without an obstruction the node field is uniform, every route is
+  // greedy, and there is nothing to demonstrate.
+  const OBSTRUCTIONS = [
+    { lat1: 11.6540, lng1: 76.6360, lat2: 11.6660, lng2: 76.6360, name: 'Ridge line' }
+  ];
+
   const HOUR = 3600e3;
   const HISTORY_HOURS = 7 * 24;
   const STEP_MIN = 30;                       // one reading every 30 min
@@ -162,6 +175,29 @@
     };
   });
 
+  // ---- routing layer -------------------------------------------------
+  // routing.js owns how readings reach the gateway: clustering, routing
+  // tables, acknowledged forwarding, and local-minima recovery. It is
+  // optional — if the script isn't loaded the dashboard still works, it just
+  // shows no topology.
+  const hasRouting = typeof window.Routing !== 'undefined';
+
+  if (hasRouting) {
+    window.Routing.configure({
+      gateway: GATEWAY,
+      obstructions: OBSTRUCTIONS,
+      nodes: NODE_DEFS.map(d => ({
+        id: d.id,
+        lat: SITE.lat + d.dLat,
+        lng: SITE.lng + d.dLng
+      }))
+    });
+
+    // Nodes that start offline are dead as far as the topology is concerned,
+    // so routes are computed around them from the first tick.
+    OFFLINE_AT_START.forEach(id => window.Routing.kill(id));
+  }
+
   // ---- fire decision -----------------------------------------------
   function evaluate(n) {
     if (!n.online) return 'offline';
@@ -178,6 +214,17 @@
   function step() {
     if (!gatewayOn) { emit(); return; }
     tick++;
+
+    // Advance the protocol one round: heartbeats, re-election, table rebuild,
+    // then one acknowledged uplink per living node.
+    if (hasRouting) {
+      window.Routing.round();
+      // A node whose battery the energy model has emptied goes offline here,
+      // which is what triggers backup-head promotion on the next round.
+      NODE_DEFS.forEach(def => {
+        if (window.Routing.roleOf(def.id) === 'dead') state[def.id].online = false;
+      });
+    }
 
     NODE_DEFS.forEach((def, i) => {
       const n = state[def.id];
@@ -201,7 +248,13 @@
         n.hum   = round1(clamp(n.hum + jitter * 1.2, 10, 95));
       }
 
-      n.batt = round1(Math.max(2, n.batt - 0.004));
+      // With routing active the energy model owns battery level — it accounts
+      // for duty cycle and cluster-head overhead, so a head visibly drains
+      // faster than its members. Without it, fall back to a flat trickle.
+      n.batt = hasRouting
+        ? round1(window.Routing.batteryPercentOf(n.id))
+        : round1(Math.max(2, n.batt - 0.004));
+
       n.rssi = Math.max(-120, Math.min(-52, n.rssi + Math.round(jitter * 4)));
       n.lastSeen = Date.now();
       n.fire = evaluate(n) === 'fire';
@@ -232,13 +285,36 @@
   }
 
   function snapshotNodes() {
+    const now = Date.now();
     return NODE_DEFS.map(d => {
       const n = state[d.id];
       const online = gatewayOn && n.online;
-      return Object.assign({}, n, {
+      const base = Object.assign({}, n, {
         online,
         status: online ? evaluate(n) : 'offline',
         fire: online && evaluate(n) === 'fire'
+      });
+
+      if (!hasRouting) return base;
+
+      const R = window.Routing;
+      const t = R.tableFor(d.id) || {};
+      // Read battery straight from the energy model rather than the cached
+      // state, so a snapshot taken between ticks is still accurate.
+      return Object.assign(base, {
+        batt: round1(R.batteryPercentOf(d.id)),
+        role: R.roleOf(d.id),               // head | backup | member | dead
+        clusterHead: t.clusterHead || null,
+        nextHop: t.nextHop || null,
+        hops: t.hops,
+        routePath: t.path || [],
+        routeModes: t.modes || [],
+        routeOk: !!t.delivered,
+        localMinimum: !!t.localMinimum,
+        routeReason: t.reason || null,
+        neighbours: t.neighbours || [],
+        duty: gatewayOn ? R.dutyStateOf(d.id, now) : 'off',
+        dutyRatio: R.dutyCycleRatio(d.id)
       });
     });
   }
@@ -280,6 +356,40 @@
       }
       fireNodeId = null;
       emit();
+    },
+
+    /* ---- routing / topology ----------------------------------------
+       Everything the dashboard needs to draw the network and explain what
+       the protocol is doing. Null-safe when routing.js isn't loaded. */
+    gateway: GATEWAY,
+    obstructions: OBSTRUCTIONS,
+    hasRouting,
+
+    routing: {
+      snapshot()      { return hasRouting ? window.Routing.snapshot() : null; },
+      stats()         { return hasRouting ? window.Routing.stats() : null; },
+      events()        { return hasRouting ? window.Routing.events() : []; },
+      tableFor(id)    { return hasRouting ? window.Routing.tableFor(id) : null; },
+      neighboursOf(id){ return hasRouting ? window.Routing.neighboursOf(id) : []; },
+      config()        { return hasRouting ? window.Routing.config : null; },
+
+      /* Demo control: take a node out and watch the network respond. Killing
+         a cluster head is the one worth showing — its backup is promoted and
+         the cluster re-homes within a few rounds. */
+      kill(id) {
+        if (!hasRouting) return false;
+        window.Routing.kill(id);
+        if (state[id]) state[id].online = false;
+        emit();
+        return true;
+      },
+      revive(id) {
+        if (!hasRouting) return false;
+        window.Routing.revive(id);
+        if (state[id]) state[id].online = true;
+        emit();
+        return true;
+      }
     }
   };
 

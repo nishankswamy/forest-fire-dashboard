@@ -1,0 +1,174 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1060 986" width="1060" height="986" font-family="ui-monospace,SFMono-Regular,Menlo,monospace">
+<rect width="1060" height="986" fill="#0d1117"/>
+<text x="34" y="44" fill="#f0f6fc" font-size="21" font-weight="700">Sensor node wiring — Raspberry Pi 4 + SX1262 LoRa HAT</text>
+<text x="34" y="68" fill="#8b949e" font-size="13">One of five identical sensor nodes. The gateway Pi uses the HAT only — no DHT22, MQ-2 or MCP3008.</text>
+<rect x="34" y="86" width="11" height="11" rx="2" fill="#f85149"/>
+<text x="51" y="96" fill="#8b949e" font-size="12">5V</text>
+<rect x="74.4" y="86" width="11" height="11" rx="2" fill="#ffa657"/>
+<text x="91.4" y="96" fill="#8b949e" font-size="12">3V3</text>
+<rect x="122.0" y="86" width="11" height="11" rx="2" fill="#6e7681"/>
+<text x="139.0" y="96" fill="#8b949e" font-size="12">GND</text>
+<rect x="169.6" y="86" width="11" height="11" rx="2" fill="#58a6ff"/>
+<text x="186.6" y="96" fill="#8b949e" font-size="12">LoRa HAT</text>
+<rect x="253.2" y="86" width="11" height="11" rx="2" fill="#3fb950"/>
+<text x="270.2" y="96" fill="#8b949e" font-size="12">DHT22</text>
+<rect x="315.2" y="86" width="11" height="11" rx="2" fill="#d29922"/>
+<text x="332.2" y="96" fill="#8b949e" font-size="12">MQ-2</text>
+<rect x="370.0" y="86" width="11" height="11" rx="2" fill="#bc8cff"/>
+<text x="387.0" y="96" fill="#8b949e" font-size="12">MCP3008</text>
+<rect x="34" y="108" width="366" height="364" rx="10" fill="#161b22" stroke="#30363d"/>
+<text x="52" y="128" fill="#f0f6fc" font-size="13" font-weight="700">40-pin header (pins 1–26 shown)</text>
+<text x="128" y="156" fill="#c9d1d9" font-size="12" text-anchor="end">3V3</text>
+<rect x="134" y="143" width="19" height="18" rx="4" fill="#ffa657" opacity="1"/>
+<text x="143.5" y="156" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">1</text>
+<rect x="159" y="143" width="19" height="18" rx="4" fill="#f85149" opacity="1"/>
+<text x="168.5" y="156" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">2</text>
+<text x="190" y="156" fill="#c9d1d9" font-size="12">5V</text>
+<text x="128" y="178" fill="#8b949e" font-size="12" text-anchor="end">GPIO2 SDA</text>
+<rect x="134" y="165" width="19" height="18" rx="4" fill="#30363d" opacity="0.35"/>
+<text x="143.5" y="178" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">3</text>
+<rect x="159" y="165" width="19" height="18" rx="4" fill="#f85149" opacity="1"/>
+<text x="168.5" y="178" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">4</text>
+<text x="190" y="178" fill="#c9d1d9" font-size="12">5V</text>
+<text x="128" y="200" fill="#8b949e" font-size="12" text-anchor="end">GPIO3 SCL</text>
+<rect x="134" y="187" width="19" height="18" rx="4" fill="#30363d" opacity="0.35"/>
+<text x="143.5" y="200" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">5</text>
+<rect x="159" y="187" width="19" height="18" rx="4" fill="#6e7681" opacity="1"/>
+<text x="168.5" y="200" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">6</text>
+<text x="190" y="200" fill="#c9d1d9" font-size="12">GND</text>
+<text x="128" y="222" fill="#c9d1d9" font-size="12" text-anchor="end">GPIO4</text>
+<rect x="134" y="209" width="19" height="18" rx="4" fill="#3fb950" opacity="1"/>
+<text x="143.5" y="222" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">7</text>
+<rect x="159" y="209" width="19" height="18" rx="4" fill="#58a6ff" opacity="1"/>
+<text x="168.5" y="222" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">8</text>
+<text x="190" y="222" fill="#c9d1d9" font-size="12">GPIO14 TXD</text>
+<text x="128" y="244" fill="#c9d1d9" font-size="12" text-anchor="end">GND</text>
+<rect x="134" y="231" width="19" height="18" rx="4" fill="#6e7681" opacity="1"/>
+<text x="143.5" y="244" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">9</text>
+<rect x="159" y="231" width="19" height="18" rx="4" fill="#58a6ff" opacity="1"/>
+<text x="168.5" y="244" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">10</text>
+<text x="190" y="244" fill="#c9d1d9" font-size="12">GPIO15 RXD</text>
+<text x="128" y="266" fill="#c9d1d9" font-size="12" text-anchor="end">GPIO17</text>
+<rect x="134" y="253" width="19" height="18" rx="4" fill="#d29922" opacity="1"/>
+<text x="143.5" y="266" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">11</text>
+<rect x="159" y="253" width="19" height="18" rx="4" fill="#30363d" opacity="0.35"/>
+<text x="168.5" y="266" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">12</text>
+<text x="190" y="266" fill="#8b949e" font-size="12">GPIO18</text>
+<text x="128" y="288" fill="#c9d1d9" font-size="12" text-anchor="end">GPIO27</text>
+<rect x="134" y="275" width="19" height="18" rx="4" fill="#58a6ff" opacity="1"/>
+<text x="143.5" y="288" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">13</text>
+<rect x="159" y="275" width="19" height="18" rx="4" fill="#6e7681" opacity="1"/>
+<text x="168.5" y="288" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">14</text>
+<text x="190" y="288" fill="#c9d1d9" font-size="12">GND</text>
+<text x="128" y="310" fill="#c9d1d9" font-size="12" text-anchor="end">GPIO22</text>
+<rect x="134" y="297" width="19" height="18" rx="4" fill="#58a6ff" opacity="1"/>
+<text x="143.5" y="310" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">15</text>
+<rect x="159" y="297" width="19" height="18" rx="4" fill="#30363d" opacity="0.35"/>
+<text x="168.5" y="310" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">16</text>
+<text x="190" y="310" fill="#8b949e" font-size="12">GPIO23</text>
+<text x="128" y="332" fill="#c9d1d9" font-size="12" text-anchor="end">3V3</text>
+<rect x="134" y="319" width="19" height="18" rx="4" fill="#ffa657" opacity="1"/>
+<text x="143.5" y="332" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">17</text>
+<rect x="159" y="319" width="19" height="18" rx="4" fill="#30363d" opacity="0.35"/>
+<text x="168.5" y="332" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">18</text>
+<text x="190" y="332" fill="#8b949e" font-size="12">GPIO24</text>
+<text x="128" y="354" fill="#c9d1d9" font-size="12" text-anchor="end">GPIO10 MOSI</text>
+<rect x="134" y="341" width="19" height="18" rx="4" fill="#bc8cff" opacity="1"/>
+<text x="143.5" y="354" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">19</text>
+<rect x="159" y="341" width="19" height="18" rx="4" fill="#6e7681" opacity="1"/>
+<text x="168.5" y="354" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">20</text>
+<text x="190" y="354" fill="#c9d1d9" font-size="12">GND</text>
+<text x="128" y="376" fill="#c9d1d9" font-size="12" text-anchor="end">GPIO9 MISO</text>
+<rect x="134" y="363" width="19" height="18" rx="4" fill="#bc8cff" opacity="1"/>
+<text x="143.5" y="376" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">21</text>
+<rect x="159" y="363" width="19" height="18" rx="4" fill="#30363d" opacity="0.35"/>
+<text x="168.5" y="376" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">22</text>
+<text x="190" y="376" fill="#8b949e" font-size="12">GPIO25</text>
+<text x="128" y="398" fill="#c9d1d9" font-size="12" text-anchor="end">GPIO11 SCLK</text>
+<rect x="134" y="385" width="19" height="18" rx="4" fill="#bc8cff" opacity="1"/>
+<text x="143.5" y="398" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">23</text>
+<rect x="159" y="385" width="19" height="18" rx="4" fill="#bc8cff" opacity="1"/>
+<text x="168.5" y="398" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">24</text>
+<text x="190" y="398" fill="#c9d1d9" font-size="12">GPIO8 CE0</text>
+<text x="128" y="420" fill="#c9d1d9" font-size="12" text-anchor="end">GND</text>
+<rect x="134" y="407" width="19" height="18" rx="4" fill="#6e7681" opacity="1"/>
+<text x="143.5" y="420" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">25</text>
+<rect x="159" y="407" width="19" height="18" rx="4" fill="#30363d" opacity="0.35"/>
+<text x="168.5" y="420" fill="#0d1117" font-size="11" font-weight="700" text-anchor="middle">26</text>
+<text x="190" y="420" fill="#8b949e" font-size="12">GPIO7</text>
+<text x="52" y="456" fill="#8b949e" font-size="11">Pins 27–40 unused.</text>
+<text x="52" y="472" fill="#8b949e" font-size="11">A stacking header is needed to reach these under the HAT.</text>
+<rect x="430" y="108" width="596" height="182" rx="10" fill="#161b22" stroke="#58a6ff" stroke-width="1.5"/>
+<rect x="430" y="108" width="5" height="182" rx="2.5" fill="#58a6ff"/>
+<text x="450" y="134" fill="#58a6ff" font-size="14" font-weight="700">SX1262 868M LoRa HAT  (SKU 16806)</text>
+<text x="450" y="153" fill="#8b949e" font-size="11.5">Sits directly on the header. Point-to-point, NOT LoRaWAN.</text>
+<text x="450" y="176" fill="#c9d1d9" font-size="12">UART TXD</text>
+<text x="1006" y="176" fill="#c9d1d9" font-size="12" text-anchor="end">pin 8   GPIO14</text>
+<line x1="450" y1="182" x2="1006" y2="182" stroke="#30363d" stroke-dasharray="2 3"/>
+<text x="450" y="197" fill="#c9d1d9" font-size="12">UART RXD</text>
+<text x="1006" y="197" fill="#c9d1d9" font-size="12" text-anchor="end">pin 10  GPIO15</text>
+<line x1="450" y1="203" x2="1006" y2="203" stroke="#30363d" stroke-dasharray="2 3"/>
+<text x="450" y="218" fill="#c9d1d9" font-size="12">M1</text>
+<text x="1006" y="218" fill="#c9d1d9" font-size="12" text-anchor="end">pin 13  GPIO27</text>
+<line x1="450" y1="224" x2="1006" y2="224" stroke="#30363d" stroke-dasharray="2 3"/>
+<text x="450" y="239" fill="#c9d1d9" font-size="12">M0</text>
+<text x="1006" y="239" fill="#c9d1d9" font-size="12" text-anchor="end">pin 15  GPIO22</text>
+<line x1="450" y1="245" x2="1006" y2="245" stroke="#30363d" stroke-dasharray="2 3"/>
+<text x="450" y="268" fill="#8b949e" font-size="11">Jumper to position B. REMOVE the M0/M1 caps. Antenna on before power.</text>
+<rect x="430" y="306" width="596" height="160" rx="10" fill="#161b22" stroke="#3fb950" stroke-width="1.5"/>
+<rect x="430" y="306" width="5" height="160" rx="2.5" fill="#3fb950"/>
+<text x="450" y="332" fill="#3fb950" font-size="14" font-weight="700">DHT22  —  temperature + humidity</text>
+<text x="450" y="351" fill="#8b949e" font-size="11.5">DHT_MODE=dht22</text>
+<text x="450" y="374" fill="#c9d1d9" font-size="12">VCC</text>
+<text x="1006" y="374" fill="#c9d1d9" font-size="12" text-anchor="end">pin 1   3V3</text>
+<line x1="450" y1="380" x2="1006" y2="380" stroke="#30363d" stroke-dasharray="2 3"/>
+<text x="450" y="395" fill="#c9d1d9" font-size="12">DATA</text>
+<text x="1006" y="395" fill="#c9d1d9" font-size="12" text-anchor="end">pin 7   GPIO4</text>
+<line x1="450" y1="401" x2="1006" y2="401" stroke="#30363d" stroke-dasharray="2 3"/>
+<text x="450" y="416" fill="#c9d1d9" font-size="12">GND</text>
+<text x="1006" y="416" fill="#c9d1d9" font-size="12" text-anchor="end">pin 9   GND</text>
+<line x1="450" y1="422" x2="1006" y2="422" stroke="#30363d" stroke-dasharray="2 3"/>
+<text x="450" y="445" fill="#8b949e" font-size="11">10 kΩ pull-up from DATA to 3V3. Occasional None reads are normal.</text>
+<rect x="430" y="482" width="596" height="160" rx="10" fill="#161b22" stroke="#d29922" stroke-width="1.5"/>
+<rect x="430" y="482" width="5" height="160" rx="2.5" fill="#d29922"/>
+<text x="450" y="508" fill="#d29922" font-size="14" font-weight="700">MQ-2  —  smoke / combustible gas</text>
+<text x="450" y="527" fill="#8b949e" font-size="11.5">SMOKE_MODE=digital (DO)  or  SMOKE_MODE=adc (AO)</text>
+<text x="450" y="550" fill="#c9d1d9" font-size="12">VCC</text>
+<text x="1006" y="550" fill="#c9d1d9" font-size="12" text-anchor="end">pin 2   5V</text>
+<line x1="450" y1="556" x2="1006" y2="556" stroke="#30363d" stroke-dasharray="2 3"/>
+<text x="450" y="571" fill="#c9d1d9" font-size="12">DO  (digital mode)</text>
+<text x="1006" y="571" fill="#c9d1d9" font-size="12" text-anchor="end">pin 11  GPIO17</text>
+<line x1="450" y1="577" x2="1006" y2="577" stroke="#30363d" stroke-dasharray="2 3"/>
+<text x="450" y="592" fill="#c9d1d9" font-size="12">AO  (adc mode)</text>
+<text x="1006" y="592" fill="#c9d1d9" font-size="12" text-anchor="end">MCP3008 CH0</text>
+<line x1="450" y1="598" x2="1006" y2="598" stroke="#30363d" stroke-dasharray="2 3"/>
+<text x="450" y="621" fill="#8b949e" font-size="11">GND to any GND pin. Set the DO trip point with the on-board pot.</text>
+<rect x="430" y="658" width="596" height="228" rx="10" fill="#161b22" stroke="#bc8cff" stroke-width="1.5"/>
+<rect x="430" y="658" width="5" height="228" rx="2.5" fill="#bc8cff"/>
+<text x="450" y="684" fill="#bc8cff" font-size="14" font-weight="700">MCP3008  —  10-bit ADC on SPI</text>
+<text x="450" y="703" fill="#8b949e" font-size="11.5">SMOKE_MODE=adc only. Enable SPI: raspi-config -&gt; Interface Options -&gt; SPI</text>
+<text x="450" y="726" fill="#c9d1d9" font-size="12">VDD + VREF</text>
+<text x="1006" y="726" fill="#c9d1d9" font-size="12" text-anchor="end">pin 17  3V3</text>
+<line x1="450" y1="732" x2="1006" y2="732" stroke="#30363d" stroke-dasharray="2 3"/>
+<text x="450" y="747" fill="#c9d1d9" font-size="12">AGND + DGND</text>
+<text x="1006" y="747" fill="#c9d1d9" font-size="12" text-anchor="end">GND</text>
+<line x1="450" y1="753" x2="1006" y2="753" stroke="#30363d" stroke-dasharray="2 3"/>
+<text x="450" y="768" fill="#c9d1d9" font-size="12">CLK</text>
+<text x="1006" y="768" fill="#c9d1d9" font-size="12" text-anchor="end">pin 23  GPIO11 SCLK</text>
+<line x1="450" y1="774" x2="1006" y2="774" stroke="#30363d" stroke-dasharray="2 3"/>
+<text x="450" y="789" fill="#c9d1d9" font-size="12">DOUT</text>
+<text x="1006" y="789" fill="#c9d1d9" font-size="12" text-anchor="end">pin 21  GPIO9  MISO</text>
+<line x1="450" y1="795" x2="1006" y2="795" stroke="#30363d" stroke-dasharray="2 3"/>
+<text x="450" y="810" fill="#c9d1d9" font-size="12">DIN</text>
+<text x="1006" y="810" fill="#c9d1d9" font-size="12" text-anchor="end">pin 19  GPIO10 MOSI</text>
+<line x1="450" y1="816" x2="1006" y2="816" stroke="#30363d" stroke-dasharray="2 3"/>
+<text x="450" y="831" fill="#c9d1d9" font-size="12">CS</text>
+<text x="1006" y="831" fill="#c9d1d9" font-size="12" text-anchor="end">pin 24  GPIO8  CE0</text>
+<line x1="450" y1="837" x2="1006" y2="837" stroke="#30363d" stroke-dasharray="2 3"/>
+<text x="450" y="852" fill="#c9d1d9" font-size="12">CH0 / CH1</text>
+<text x="1006" y="852" fill="#c9d1d9" font-size="12" text-anchor="end">MQ-2 AO / battery divider</text>
+<line x1="450" y1="858" x2="1006" y2="858" stroke="#30363d" stroke-dasharray="2 3"/>
+<rect x="34" y="926" width="992" height="30" rx="7" fill="#f85149" fill-opacity="0.09" stroke="#f85149"/>
+<text x="50" y="946" fill="#f85149" font-size="12" font-weight="700">! 5V hazard:</text>
+<text x="152" y="946" fill="#c9d1d9" font-size="12">the MQ-2 runs on 5V and its AO can exceed 3.3V, which will damage the MCP3008. Fit a 2x10 kΩ divider between AO and CH0.</text>
+</svg>

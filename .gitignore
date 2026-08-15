@@ -7,3 +7,16 @@ Thumbs.db
 .env.local
 .vscode/
 .idea/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Waveshare's driver — pulled by pi/setup.sh, not vendored here
+pi/node/sx126x.py
+pi/gateway/sx126x.py
+
+# Gateway telemetry database and its WAL sidecars. Field data, not source.
+*.db
+*.db-wal
+*.db-shm

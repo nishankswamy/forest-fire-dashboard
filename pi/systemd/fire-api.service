@@ -1,0 +1,27 @@
+[Unit]
+Description=Forest fire dashboard API (HTTP :5000)
+Documentation=file://@REPO_DIR@/pi/README.md
+After=network.target fire-gateway.service
+
+# Restart storm guard. These are [Unit] keys on systemd >= 229;
+# in [Service] they are silently ignored.
+StartLimitIntervalSec=180
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=@RUN_USER@
+WorkingDirectory=@REPO_DIR@/pi/gateway
+ExecStart=/usr/bin/python3 api.py
+
+Environment="PYTHONUNBUFFERED=1"
+
+Restart=always
+RestartSec=10
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fire-api
+
+[Install]
+WantedBy=multi-user.target

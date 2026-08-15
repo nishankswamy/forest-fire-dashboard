@@ -1,0 +1,38 @@
+[Unit]
+Description=Forest fire sensor node (LoRa transmitter)
+Documentation=file://@REPO_DIR@/pi/README.md
+After=network.target
+
+# Restart storm guard. These are [Unit] keys on systemd >= 229;
+# in [Service] they are silently ignored.
+StartLimitIntervalSec=180
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=@RUN_USER@
+WorkingDirectory=@REPO_DIR@/pi/node
+ExecStart=/usr/bin/python3 sensor_node.py
+
+# NODE_ID is the one value that differs per Pi. setup.sh substitutes it.
+Environment="NODE_ID=@NODE_ID@"
+
+# Sensor modes. Start in simulate to prove the radio link, then switch to
+#   SMOKE_MODE=adc      (MQ-2 via MCP3008)
+#   SMOKE_MODE=digital  (MQ-2 DO pin, on/off only)
+#   DHT_MODE=dht22
+# and: sudo systemctl daemon-reload && sudo systemctl restart fire-node
+Environment="SMOKE_MODE=simulate"
+Environment="DHT_MODE=simulate"
+
+Environment="PYTHONUNBUFFERED=1"
+
+Restart=always
+RestartSec=10
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fire-node
+
+[Install]
+WantedBy=multi-user.target

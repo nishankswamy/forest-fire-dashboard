@@ -46,6 +46,31 @@ Pi must use the same value or they won't hear each other.
 
 ---
 
+## Fast path — `setup.sh`
+
+Steps 2, 3, 5 and 8 below are automated. On each Pi, once the repo is cloned:
+
+```bash
+cd ~/forest-fire-dashboard/pi
+
+sudo ./setup.sh gateway      # on the gateway Pi
+sudo ./setup.sh node 1       # on sensor Pi 1 ... through node 5
+```
+
+It installs the Python packages for that role, downloads Waveshare's
+`sx126x.py` and puts it where the code expects, enables UART (and SPI on
+sensor nodes), disables the serial login console that would otherwise fight
+the HAT for `/dev/ttyS0`, adds you to `dialout`, and installs and enables the
+systemd units. Re-running it is safe — every step checks before acting.
+
+You still have to do the physical work yourself: **Step 1** (jumpers) and
+**Step 4** (sensor wiring). And edit `common/config.py` for real coordinates
+and a non-default `CRYPT_KEY` (**Step 6**).
+
+Reboot when it says to — the serial and SPI changes need it.
+
+---
+
 ## Step 1 — HAT jumpers (all Pis)
 
 - **UART selection jumper → position B** (LoRa module talks to the Pi)
@@ -93,6 +118,12 @@ It is not bundled here because it's Waveshare's code — pull it from source so
 you get any fixes they publish.
 
 ## Step 4 — Sensor wiring (sensor Pis only)
+
+![Sensor node wiring](docs/wiring.svg)
+
+Colour-coded pin map in [`docs/wiring.svg`](docs/wiring.svg) — open it directly
+for a full-size version. The same information as the tables below, laid out by
+device.
 
 **DHT22** (temperature + humidity)
 
@@ -195,34 +226,71 @@ Open `http://<gateway-pi-ip>:5000` from any device on the network.
 
 ## Step 8 — Run on boot
 
-`/etc/systemd/system/fire-gateway.service` on the gateway:
+`setup.sh` already did this. The units live in [`systemd/`](systemd/):
 
-```ini
-[Unit]
-Description=Forest fire LoRa gateway
-After=network.target
+| Unit | Pi | Runs |
+|---|---|---|
+| `fire-gateway.service` | gateway | `gateway.py` — radio → SQLite |
+| `fire-api.service` | gateway | `api.py` — HTTP :5000 |
+| `fire-node.service` | each sensor | `sensor_node.py` |
 
-[Service]
-Type=simple
-User=pi
-WorkingDirectory=/home/pi/forest-fire-dashboard/pi/gateway
-ExecStart=/usr/bin/python3 gateway.py
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Same pattern for `fire-api.service` (`ExecStart=/usr/bin/python3 api.py`) and,
-on each sensor Pi, `fire-node.service` with `Environment="NODE_ID=1"`.
+They ship with `@REPO_DIR@`, `@RUN_USER@` and `@NODE_ID@` placeholders that
+`setup.sh` substitutes at install time, so nothing carries a hardcoded path.
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now fire-gateway fire-api
+systemctl status fire-gateway fire-api      # gateway
+journalctl -u fire-node -f                  # sensor node, live
+```
+
+To move a node off simulated sensors, edit
+`/etc/systemd/system/fire-node.service`, set `SMOKE_MODE=adc` and
+`DHT_MODE=dht22`, then `sudo systemctl daemon-reload && sudo systemctl restart
+fire-node`.
+
+Installing by hand instead:
+
+```bash
+sed -e "s|@REPO_DIR@|$HOME/forest-fire-dashboard|g" \
+    -e "s|@RUN_USER@|$USER|g" -e "s|@NODE_ID@|1|g" \
+    systemd/fire-node.service | sudo tee /etc/systemd/system/fire-node.service
+sudo systemctl daemon-reload && sudo systemctl enable --now fire-node
 ```
 
 ---
+
+## Prove the radio first — `tools/linktest.py`
+
+Before wiring a single sensor, get **two** Pis talking. Everything else depends
+on this working, and it is far easier to debug with nothing else attached.
+
+```bash
+# gateway Pi
+python3 tools/linktest.py rx
+
+# sensor Pi
+python3 tools/linktest.py tx --node-id 1 --count 100
+```
+
+Ctrl-C the receiver for a scored summary:
+
+```
+node       recv     lost delivered  crc_fail  rssi_mean
+1            98        2     98.0%         0      -84.3
+```
+
+What to look for:
+
+| Column | Healthy | Meaning |
+|---|---|---|
+| `delivered` | ≥ 99% at close range | packets that arrived, from sequence numbers |
+| `crc_fail` | 0 | anything else is interference or a bad antenna |
+| `rssi_mean` | better than −100 dBm | below −110 and you are at the edge of range |
+
+`NOTHING RECEIVED` prints the four likely causes in the order worth checking.
+
+This doubles as a site survey: walk the forest, run a 50-packet burst at each
+candidate position, and keep the spots that deliver. Do that **before**
+mounting anything permanently.
 
 ## Testing without leaving your desk
 

@@ -1,0 +1,31 @@
+[Unit]
+Description=Forest fire LoRa gateway (radio receiver -> SQLite)
+Documentation=file://@REPO_DIR@/pi/README.md
+After=network.target
+# Both services touch the same SQLite file. WAL mode makes concurrent
+# access safe, so this is ordering only, not a hard requirement.
+Before=fire-api.service
+
+# Restart storm guard. These are [Unit] keys on systemd >= 229;
+# in [Service] they are silently ignored.
+StartLimitIntervalSec=180
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=@RUN_USER@
+WorkingDirectory=@REPO_DIR@/pi/gateway
+ExecStart=/usr/bin/python3 gateway.py
+
+# Unbuffered, or journalctl shows nothing until the process exits.
+Environment="PYTHONUNBUFFERED=1"
+
+Restart=always
+RestartSec=10
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fire-gateway
+
+[Install]
+WantedBy=multi-user.target

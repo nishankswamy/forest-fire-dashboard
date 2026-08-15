@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Forest Fire Detection — Dashboard</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark"></span>
+    <div>
+      <h1>Forest Fire Detection Network</h1>
+      <p class="brand-sub">LoRaWAN sensor mesh &middot; <span id="siteName">Bandipur Sector 4</span></p>
+    </div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="gateway">
+      <span class="gateway-label">Gateway</span>
+      <button id="gatewayToggle" class="pill pill-on" aria-pressed="true">
+        <span class="dot"></span><span id="gatewayText">ON</span>
+      </button>
+    </div>
+    <div class="clock">
+      <span id="lastSync">last sync —</span>
+    </div>
+  </div>
+</header>
+
+<!-- ============ FIRE ALERT BANNER ============ -->
+<section id="alertBar" class="alert-bar alert-none">
+  <div class="alert-icon" id="alertIcon">✓</div>
+  <div class="alert-body">
+    <div class="alert-title" id="alertTitle">NO ALERTS</div>
+    <div class="alert-detail" id="alertDetail">All nodes reporting normal conditions.</div>
+  </div>
+  <div class="alert-actions">
+    <button id="simulateFire" class="btn btn-ghost">Simulate fire event</button>
+    <button id="clearFire" class="btn btn-ghost" hidden>Clear alert</button>
+  </div>
+</section>
+
+<main class="layout">
+
+  <!-- ============ MAP ============ -->
+  <section class="card map-card">
+    <div class="card-head">
+      <h2>Live Node Map</h2>
+      <div class="legend">
+        <span><i class="lg lg-ok"></i>Normal</span>
+        <span><i class="lg lg-warn"></i>Warning</span>
+        <span><i class="lg lg-fire"></i>Fire</span>
+        <span><i class="lg lg-off"></i>Offline</span>
+      </div>
+    </div>
+    <div id="map"></div>
+    <p class="hint">Click any node marker to inspect its live readings.</p>
+  </section>
+
+  <!-- ============ NODE DETAIL ============ -->
+  <aside class="card detail-card">
+    <div class="card-head">
+      <h2 id="detailTitle">Node Detail</h2>
+      <span class="chip" id="detailStatus">—</span>
+    </div>
+
+    <div id="detailEmpty" class="detail-empty">
+      <p>Select a node on the map.</p>
+    </div>
+
+    <div id="detailBody" hidden>
+      <div class="readout">
+        <div class="ro"><span class="ro-k">Temperature</span><span class="ro-v" id="dTemp">—</span></div>
+        <div class="ro"><span class="ro-k">Smoke (MQ-2)</span><span class="ro-v" id="dSmoke">—</span></div>
+        <div class="ro"><span class="ro-k">Humidity</span><span class="ro-v" id="dHum">—</span></div>
+        <div class="ro"><span class="ro-k">Battery</span><span class="ro-v" id="dBatt">—</span></div>
+        <div class="ro ro-fire"><span class="ro-k">Fire</span><span class="ro-v" id="dFire">—</span></div>
+      </div>
+
+      <dl class="meta">
+        <div><dt>Node ID</dt><dd id="dId">—</dd></div>
+        <div><dt>Coordinates</dt><dd id="dCoord">—</dd></div>
+        <div><dt>RSSI</dt><dd id="dRssi">—</dd></div>
+        <div><dt>Last packet</dt><dd id="dSeen">—</dd></div>
+      </dl>
+
+      <div class="spark">
+        <h3>Last 24 h — temperature &amp; smoke</h3>
+        <canvas id="sparkChart" height="130"></canvas>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ 7 DAY HISTORY ============ -->
+  <section class="card history-card">
+    <div class="card-head">
+      <h2>Previous 7 Days</h2>
+      <div class="controls">
+        <select id="metricSelect" class="select">
+          <option value="temp">Temperature (°C)</option>
+          <option value="smoke">Smoke (ppm)</option>
+          <option value="hum">Humidity (%)</option>
+          <option value="batt">Battery (%)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="history-split">
+      <ul id="nodeList" class="node-list"></ul>
+      <div class="history-chart"><canvas id="historyChart"></canvas></div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <span>Data source: <strong id="srcLabel">simulated</strong> — swap in <code>data-source.js</code> to connect TTN / your API.</span>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="data-source.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

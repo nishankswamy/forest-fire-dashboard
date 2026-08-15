@@ -1,46 +1,64 @@
 """
-protocol.py — packet format shared by sensor nodes and the gateway.
+protocol.py — packet format, version 2. Keep IDENTICAL on every Pi.
 
-Keep this file IDENTICAL on every Pi. Copy it to each node.
+Version 1 was a 12-byte one-way reading. Version 2 adds what multi-hop needs:
+a packet type, an explicit next hop, the ORIGIN node (which survives being
+forwarded, so the gateway still knows who actually took the measurement), a
+hop count, and acknowledgements.
 
-Why binary and not JSON: the SX1262 HAT defaults to 2400 bps air speed.
-A JSON reading is ~90 bytes (~300 ms on air); this is 12 bytes (~40 ms).
-Shorter time-on-air means less collision risk and less battery per uplink.
+Wire format — 16 bytes, little-endian:
 
-Wire format (12 bytes, little-endian):
+    off  size  field     meaning
+    0    1     version   protocol version, currently 2
+    1    1     type      1 BEACON, 2 DATA, 3 ACK
+    2    1     src       who transmitted this frame
+    3    1     dst       intended next hop (255 = broadcast)
+    4    1     origin    node that produced the reading
+    5    1     seq       origin's sequence number, wraps 0..255
+    6    2     temp      int16, degrees C x 10
+    8    1     hum       uint8, percent
+    9    2     smoke     uint16, ppm
+    11   1     batt      uint8, percent
+    12   1     flags     bit0 fire, bit1 sensor error,
+                         bit2 simulated, bit3 relayed
+    13   1     hops      hops taken so far
+    14   1     rsv       reserved, 0
+    15   1     crc       CRC-8 over bytes 0..14
 
-    offset  size  field      encoding
-    0       1     version    protocol version, currently 1
-    1       1     node_id    1..254  (0 is reserved for the gateway)
-    2       1     seq        rolls over 0..255, used to spot lost packets
-    3       2     temp       int16, degrees C x 10   (-3276.8 .. 3276.7)
-    5       1     hum        uint8, percent 0..100
-    6       2     smoke      uint16, ppm 0..65535
-    8       1     batt       uint8, percent 0..100
-    9       1     flags      bit0 = node's own fire verdict
-                             bit1 = sensor read error this cycle
-                             bit2 = running on simulated values
-    10      1     reserved   0 for now
-    11      1     crc        CRC-8 over bytes 0..10
+BEACON reuses the payload area — it carries no sensor data:
 
-The Waveshare driver adds its own 6-byte address/frequency header in front
-and one RSSI byte behind, so the on-air frame is 19 bytes total.
+    off  size  field
+    6    4     epoch     gateway unix time, low 32 bits
+    10   1     frame_s   frame length in seconds
+    11   1     slots     slot count in the superframe
+
+At 2400 bps a 16-byte packet plus the module's own framing is ~77 ms on air,
+which is why a 2000 ms slot is generous even with three retries.
 """
 
 import struct
+import time
 
-VERSION = 1
-PACKET_SIZE = 12
-_STRUCT = struct.Struct('<BBBhBHBBB')  # 11 bytes, crc appended separately
+VERSION = 2
+PACKET_SIZE = 16
+
+TYPE_BEACON = 1
+TYPE_DATA = 2
+TYPE_ACK = 3
 
 FLAG_FIRE = 0x01
 FLAG_SENSOR_ERROR = 0x02
 FLAG_SIMULATED = 0x04
+FLAG_RELAYED = 0x08
+
+_HEAD = struct.Struct('<BBBBBB')          # version..seq, 6 bytes
+_BODY = struct.Struct('<hBHBBBB')         # temp..rsv, 9 bytes
+_BEACON = struct.Struct('<IBBBBB')        # epoch, frame_s, slots, pad*3
 
 
-def crc8(data: bytes) -> int:
-    """Dallas/Maxim CRC-8, polynomial 0x31 reflected. Catches the single-bit
-    and burst errors that survive LoRa's own FEC."""
+def crc8(data):
+    """Dallas/Maxim CRC-8, polynomial 0x31. Catches the single-bit and burst
+    errors that survive LoRa's own forward error correction."""
     crc = 0x00
     for byte in data:
         crc ^= byte
@@ -53,10 +71,19 @@ def _clamp(value, low, high):
     return max(low, min(high, value))
 
 
-def encode(node_id, seq, temp_c, humidity, smoke_ppm, battery_pct,
-           fire=False, sensor_error=False, simulated=False) -> bytes:
-    """Build a 12-byte packet. Values are clamped, never raised on, so a
-    flaky sensor can't take the node offline."""
+class BadPacket(Exception):
+    """Bytes off the radio that are not a valid packet."""
+
+
+def _finish(body):
+    return body + bytes([crc8(body)])
+
+
+def encode_data(src, dst, origin, seq, temp_c, humidity, smoke_ppm,
+                battery_pct, fire=False, sensor_error=False, simulated=False,
+                relayed=False, hops=0):
+    """Build a DATA packet. Values are clamped, never raised on, so a flaky
+    sensor can never take a node off the air."""
     flags = 0
     if fire:
         flags |= FLAG_FIRE
@@ -64,28 +91,42 @@ def encode(node_id, seq, temp_c, humidity, smoke_ppm, battery_pct,
         flags |= FLAG_SENSOR_ERROR
     if simulated:
         flags |= FLAG_SIMULATED
+    if relayed:
+        flags |= FLAG_RELAYED
 
-    body = _STRUCT.pack(
-        VERSION,
-        _clamp(int(node_id), 1, 254),
-        int(seq) & 0xFF,
+    body = _HEAD.pack(VERSION, TYPE_DATA,
+                      _clamp(int(src), 0, 255), _clamp(int(dst), 0, 255),
+                      _clamp(int(origin), 1, 254), int(seq) & 0xFF)
+    body += _BODY.pack(
         _clamp(int(round(temp_c * 10)), -32768, 32767),
         _clamp(int(round(humidity)), 0, 100),
         _clamp(int(round(smoke_ppm)), 0, 65535),
         _clamp(int(round(battery_pct)), 0, 100),
         flags,
-        0,
-    )
-    return body + bytes([crc8(body)])
+        _clamp(int(hops), 0, 255),
+        0)
+    return _finish(body)
 
 
-class BadPacket(Exception):
-    """Raised when bytes off the radio are not a valid reading."""
+def encode_ack(src, dst, origin, seq):
+    body = _HEAD.pack(VERSION, TYPE_ACK, int(src) & 0xFF, int(dst) & 0xFF,
+                      int(origin) & 0xFF, int(seq) & 0xFF)
+    body += _BODY.pack(0, 0, 0, 0, 0, 0, 0)
+    return _finish(body)
 
 
-def decode(raw: bytes) -> dict:
-    """Parse a packet. Raises BadPacket on wrong length, bad CRC, or a
-    version this build doesn't understand."""
+def encode_beacon(src, frame_number, epoch=None, frame_seconds=60, slots=8):
+    """Broadcast frame sync. Every node aligns its slot clock to this."""
+    body = _HEAD.pack(VERSION, TYPE_BEACON, int(src) & 0xFF, 255,
+                      0, int(frame_number) & 0xFF)
+    body += _BEACON.pack(int(epoch if epoch is not None else time.time()) & 0xFFFFFFFF,
+                         int(frame_seconds) & 0xFF, int(slots) & 0xFF, 0, 0, 0)
+    return _finish(body)
+
+
+def decode(raw):
+    """Parse a packet. Raises BadPacket on wrong length, bad CRC, or an
+    unsupported version."""
     if len(raw) != PACKET_SIZE:
         raise BadPacket('expected %d bytes, got %d' % (PACKET_SIZE, len(raw)))
 
@@ -93,21 +134,42 @@ def decode(raw: bytes) -> dict:
     if crc8(body) != received_crc:
         raise BadPacket('CRC mismatch')
 
-    version, node_id, seq, temp, hum, smoke, batt, flags, _reserved = _STRUCT.unpack(body)
-
+    version, ptype, src, dst, origin, seq = _HEAD.unpack(body[:6])
     if version != VERSION:
         raise BadPacket('unsupported protocol version %d' % version)
-    if not 1 <= node_id <= 254:
-        raise BadPacket('invalid node id %d' % node_id)
 
-    return {
-        'node_id': node_id,
-        'seq': seq,
+    out = {'type': ptype, 'src': src, 'dst': dst, 'origin': origin, 'seq': seq}
+
+    if ptype == TYPE_BEACON:
+        epoch, frame_s, slots, _a, _b, _c = _BEACON.unpack(body[6:])
+        out.update({'epoch': epoch, 'frame_seconds': frame_s, 'slots': slots})
+        return out
+
+    if ptype == TYPE_ACK:
+        return out
+
+    if ptype != TYPE_DATA:
+        raise BadPacket('unknown packet type %d' % ptype)
+
+    temp, hum, smoke, batt, flags, hops, _rsv = _BODY.unpack(body[6:])
+    if not 1 <= origin <= 254:
+        raise BadPacket('invalid origin %d' % origin)
+
+    out.update({
         'temp': temp / 10.0,
         'hum': float(hum),
         'smoke': float(smoke),
         'batt': float(batt),
+        'flags': flags,
+        'hops': hops,
         'fire': bool(flags & FLAG_FIRE),
         'sensor_error': bool(flags & FLAG_SENSOR_ERROR),
         'simulated': bool(flags & FLAG_SIMULATED),
-    }
+        'relayed': bool(flags & FLAG_RELAYED),
+    })
+    return out
+
+
+def airtime_ms(air_speed=2400, overhead_bytes=7):
+    """Rough time on air for one packet, used to size TDMA slots."""
+    return 1000.0 * (PACKET_SIZE + overhead_bytes) * 8 / float(air_speed)

@@ -70,7 +70,15 @@ esac
 
 [[ $EUID -eq 0 ]] || c_die "run with sudo — this edits /boot config and /etc/systemd"
 
-c_info "role=$ROLE${NODE_ID:+ node_id=$NODE_ID} user=$RUN_USER"
+# The cluster role (head vs plain node) comes from config.ROLES, keyed by
+# NODE_ID — it is not a separate argument, so the five Pis cannot disagree
+# about who the cluster heads are.
+if [[ "$ROLE" == "node" ]]; then
+    NODE_ROLE="$(python3 -c "import sys; sys.path.insert(0,'$PI_DIR/common'); import config; print(config.role_of($NODE_ID))" 2>/dev/null || echo unknown)"
+    c_info "role=node node_id=$NODE_ID cluster_role=$NODE_ROLE user=$RUN_USER"
+else
+    c_info "role=$ROLE user=$RUN_USER"
+fi
 c_info "repo=$REPO_DIR"
 
 # ------------------------------------------------------------- apt packages --
@@ -205,6 +213,14 @@ install_unit() {
         "$src" > "/etc/systemd/system/$name"
     c_ok "installed $name"
 }
+
+# Refuse to install services against a schedule that would collide.
+c_info "validating TDMA schedule"
+if ! python3 -c "import sys; sys.path.insert(0,'$PI_DIR/common'); import tdma; e=tdma.validate_schedule(); sys.exit(1 if e else 0)"; then
+    python3 -c "import sys; sys.path.insert(0,'$PI_DIR/common'); import tdma; [print('  -', x) for x in tdma.validate_schedule()]"
+    c_die "config.py has an invalid slot map — fix it before deploying"
+fi
+c_ok "schedule valid"
 
 c_info "installing systemd units"
 if [[ "$ROLE" == "gateway" ]]; then

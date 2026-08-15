@@ -80,6 +80,31 @@ def site():
             'battLow': config.RULES['batt_low'],
         },
         'offlineAfter': config.OFFLINE_AFTER,
+        'gateway': {
+            'id': 'GW',
+            'lat': config.GATEWAY_POS['lat'],
+            'lng': config.GATEWAY_POS['lng'],
+        },
+        # The dashboard draws the real topology from this rather than assuming
+        # a star, so what you see on screen matches what the radios do.
+        'topology': {
+            'roles': {('N-%02d' % n): config.role_of(n) for n in config.NODES},
+            'clusterOf': {('N-%02d' % n): c for n, c in config.CLUSTER_OF.items()},
+            'headOfCluster': {c: ('N-%02d' % n) for c, n in config.HEAD_OF_CLUSTER.items()},
+            'backupHead': {c: ('N-%02d' % n) for c, n in config.BACKUP_HEAD.items()},
+            'routes': {('N-%02d' % n): [
+                'GW' if h == config.GATEWAY_ADDR else 'N-%02d' % h
+                for h in config.routes_for(n)] for n in config.ROUTES},
+        },
+        'tdma': {
+            'frameSeconds': config.FRAME_SECONDS,
+            'slotMs': config.SLOT_MS,
+            'slotCount': config.SLOT_COUNT,
+            'dataSlot': {('N-%02d' % n): s for n, s in config.DATA_SLOT.items()},
+            'forwardSlot': {('N-%02d' % n): s for n, s in config.FORWARD_SLOT.items()},
+            'dutyCycle': {('N-%02d' % n): round(config.duty_cycle_of(n), 4)
+                          for n in config.NODES},
+        },
     })
 
 
@@ -112,6 +137,15 @@ def nodes():
             'lastSeen': row['ts'] * 1000.0,
             'sensorError': bool(row['flags'] & 0x02),
             'simulated': bool(row['flags'] & 0x04),
+            # How this reading actually got here, straight from the packet.
+            'role': config.role_of(node_id),
+            'cluster': config.CLUSTER_OF.get(node_id),
+            'via': ('GW' if row['via'] == config.GATEWAY_ADDR
+                    else 'N-%02d' % row['via']) if row['via'] is not None else None,
+            'hops': row['hops'] if row['hops'] is not None else 1,
+            'nextHop': _hop_label(config.routes_for(node_id)[0]),
+            'routePath': _route_path(node_id),
+            'dutyRatio': round(config.duty_cycle_of(node_id), 4),
         }
 
     # Configured nodes that have never reported still belong on the map,
@@ -125,9 +159,49 @@ def nodes():
                 'temp': 0, 'hum': 0, 'smoke': 0, 'batt': 0,
                 'fire': False, 'rssi': None, 'lastSeen': 0,
                 'sensorError': False, 'simulated': False,
+                'role': config.role_of(node_id),
+                'cluster': config.CLUSTER_OF.get(node_id),
+                'via': None, 'hops': None,
+                'nextHop': _hop_label(config.routes_for(node_id)[0]),
+                'routePath': _route_path(node_id),
+                'dutyRatio': round(config.duty_cycle_of(node_id), 4),
             }
 
     return jsonify([seen[k] for k in sorted(seen)])
+
+
+def _hop_label(addr):
+    return 'GW' if addr == config.GATEWAY_ADDR else 'N-%02d' % addr
+
+
+def _route_path(node_id, _depth=0):
+    """Expected path to the gateway by following primary next hops.
+
+    Guarded against a cycle introduced by a bad edit to ROUTES — it returns
+    what it has rather than recursing forever.
+    """
+    path = [_hop_label(node_id)]
+    hop = config.routes_for(node_id)[0]
+    seen = {node_id}
+    while hop != config.GATEWAY_ADDR and hop not in seen and len(path) < 8:
+        seen.add(hop)
+        path.append(_hop_label(hop))
+        hop = config.routes_for(hop)[0]
+    path.append('GW')
+    return path
+
+
+@app.route('/api/routes')
+def routes():
+    """Observed routing over the last hour — what the radios actually did,
+    as opposed to what config.py intends."""
+    return jsonify([{
+        'id': 'N-%02d' % r['node_id'],
+        'via': _hop_label(r['via']) if r['via'] is not None else None,
+        'hops': r['hops'],
+        'packets': r['n'],
+        'lastSeen': r['last_ts'] * 1000.0,
+    } for r in db.route_summary(get_db())])
 
 
 @app.route('/api/nodes/<node_id>/history')

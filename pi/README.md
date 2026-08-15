@@ -1,22 +1,46 @@
 # Raspberry Pi Deployment Guide
 
-Hardware: Raspberry Pi 4 × N, Waveshare **SX1262 868M LoRa HAT** (SKU 16806) on each.
+Hardware: Raspberry Pi 4 × 6, Waveshare **SX1262 868M LoRa HAT** (SKU 16806) on each.
+
+Six Pis: one gateway, two cluster heads, three plain sensor nodes.
 
 ```
-  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐
-  │ Sensor Pi 1  │   │ Sensor Pi 2  │   │ Sensor Pi N  │
-  │ addr = 1     │   │ addr = 2     │   │ addr = N     │
-  │ DHT22 + MQ-2 │   │ DHT22 + MQ-2 │   │ DHT22 + MQ-2 │
-  └──────┬───────┘   └──────┬───────┘   └──────┬───────┘
-         │                  │                  │
-         └────── LoRa 866 MHz, 12-byte packets ┘
-                            │
-                   ┌────────▼────────┐
-                   │  Gateway Pi     │  addr = 0, has internet
-                   │  gateway.py     │  → SQLite
-                   │  api.py         │  → serves dashboard :5000
-                   └─────────────────┘
+   CLUSTER A                                 CLUSTER B
+   ┌────────────┐  ┌────────────┐            ┌────────────┐
+   │  node 2    │  │  node 3    │            │  node 5    │
+   │  member    │  │  member +  │            │  member +  │
+   │            │  │  backup CH │            │  backup CH │
+   └─────┬──────┘  └─────┬──────┘            └─────┬──────┘
+         │  slot 4       │  slot 5                 │  slot 7
+         └───────┬───────┘                         ▼
+                 ▼                          ┌─────────────┐
+          ┌─────────────┐   slot 8          │  CH-B  (4)  │
+          │  CH-A  (1)  │ ◄─────────────────│  cluster    │
+          │  cluster    │                   │  head B     │
+          │  head A     │                   └─────────────┘
+          └──────┬──────┘                   out of gateway range
+                 │ slot 9                   ON PURPOSE — this is
+                 ▼                          what makes the relay real
+        ┌──────────────────┐
+        │  GATEWAY  (0)    │  gateway.py → SQLite
+        │  beacon, slot 0  │  api.py     → dashboard :5000
+        └──────────────────┘
 ```
+
+Readings travel **node → cluster head → gateway**, and cluster B travels
+**node 5 → CH-B → CH-A → gateway** — three hops. The origin node is carried in
+every packet, so a relayed reading is still attributed to the Pi that sensed it.
+
+Two properties are structural rather than best-effort, and both are verified by
+`tools/netsim.py`:
+
+- **No collisions.** Every transmission happens in a TDMA slot owned by exactly
+  one radio. Not CSMA — carrier sense would fail here anyway, because node 2
+  cannot hear CH-B and they are a textbook hidden-terminal pair.
+- **No local minima.** Nothing does greedy geographic forwarding. Each node has
+  an explicit ordered next-hop list in `config.ROUTES`; if the first hop does
+  not acknowledge, it falls through to the next, and if none answer the reading
+  is buffered rather than handed to a neighbour with no path onward.
 
 ## Two things to know before you start
 
@@ -183,6 +207,52 @@ sudo apt install -y libgpiod2
 pip3 install --break-system-packages adafruit-circuitpython-dht adafruit-circuitpython-mcp3xxx
 ```
 
+## Roles, slots and the frame
+
+`config.py` is the single source of truth. Every Pi runs the same file; only
+`NODE_ID` differs, and the role follows from it.
+
+| addr | role | cluster | sends to | duty cycle |
+|---|---|---|---|---|
+| 0 | gateway | — | — | always on (mains) |
+| 1 | **CH-A** | A | gateway | 30% |
+| 2 | node | A | CH-A, else node 3 | 6.7% |
+| 3 | node + backup CH-A | A | CH-A, else gateway | 10% |
+| 4 | **CH-B** | B | CH-A, else gateway | 16.7% |
+| 5 | node + backup CH-B | B | CH-B, else CH-A | 6.7% |
+
+One 60-second superframe, ten 2-second slots, then every radio sleeps:
+
+```
+slot 0  gateway  beacon broadcast          heard by 1, 2, 3
+slot 1  CH-A     rebroadcasts the beacon   heard by 4
+slot 2  CH-B     rebroadcasts the beacon   heard by 5
+slot 3  CH-A     own reading    → gateway
+slot 4  node 2   reading        → CH-A
+slot 5  node 3   reading        → CH-A
+slot 6  CH-B     own reading    → CH-A
+slot 7  node 5   reading        → CH-B
+slot 8  CH-B     forwards cluster B  → CH-A
+slot 9  CH-A     forwards everything → gateway
+        ── 40 s of silence, radios off ──
+```
+
+Slots 1 and 2 exist because cluster B cannot hear the gateway, so it cannot
+hear the sync beacon either. Sync is relayed along the same tree the data
+takes. Each relay needs its **own** slot — two heads rebroadcasting in one slot
+would collide with each other.
+
+**Backup heads.** Node 3 covers CH-A, node 5 covers CH-B. Promotion triggers
+after `HEAD_MISS_LIMIT` frames in which the head fails to acknowledge an
+uplink — deliberately *not* on beacon silence, because a head can be alive and
+simply have nothing to rebroadcast. A promoted backup **adopts the dead head's
+slots**, which is why failover cannot cause a collision: the head it replaces
+is by definition not transmitting.
+
+`tdma.validate_schedule()` runs at every startup and refuses to boot on a slot
+map where two radios could transmit at once. `setup.sh` runs it too, before
+installing any service.
+
 ## Step 6 — Configure node identities
 
 Edit `pi/common/config.py` on **every** Pi so the `NODES` dictionary matches
@@ -257,6 +327,36 @@ sudo systemctl daemon-reload && sudo systemctl enable --now fire-node
 ```
 
 ---
+
+## Run the whole network on your laptop — `tools/netsim.py`
+
+Before touching hardware, run the six-Pi network in one process. It imports the
+**real** `gateway.py` and `sensor_node.py` and drives them against a virtual
+radio, so what it tests is what ships.
+
+```bash
+python3 tools/netsim.py --frames 8            # normal operation
+python3 tools/netsim.py --frames 6 --fire 5   # deepest node detects fire
+python3 tools/netsim.py --frames 12 --kill 1  # CH-A dies, backup promotes
+python3 tools/netsim.py --frames 8 --loss 0.15
+```
+
+Expected on a clean run:
+
+```
+transmissions : 184
+collisions    : 0
+rows stored   : 40          (5 nodes × 8 frames, no duplicates)
+  node 1  via 1  hops=1
+  node 2  via 1  hops=2
+  node 5  via 1  hops=3     ← relayed CH-B → CH-A → gateway
+collisions        : PASS (0)
+all nodes reached : PASS
+```
+
+The medium models airtime, range and overlap, and records any two overlapping
+transmissions that a common neighbour could hear as a collision. If you change
+the slot map, run this before you deploy.
 
 ## Prove the radio first — `tools/linktest.py`
 

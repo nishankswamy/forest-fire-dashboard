@@ -170,6 +170,18 @@ BEACON_MISS_LIMIT = int(os.environ.get('BEACON_MISS_LIMIT', 5))
 # cluster's backup head starts accepting traffic.
 HEAD_MISS_LIMIT = int(os.environ.get('HEAD_MISS_LIMIT', 3))
 
+# ------------------------------------------------------- remote command ----
+#
+# HALT auto-expires after this many frames unless the gateway keeps asserting
+# it. This is a SAFETY property, not a convenience: a halted fire-detection
+# network is a silent fire-detection network, and the failure mode of a
+# latched stop is that somebody halts it for a demonstration, forgets, and the
+# system is dark the day it matters. With a dead-man timer the worst case is
+# 30 minutes of silence rather than indefinite.
+#
+# Set to 0 to latch HALT until explicitly resumed. Not recommended.
+HALT_EXPIRY_FRAMES = int(os.environ.get('HALT_EXPIRY_FRAMES', 30))
+
 # ------------------------------------------------------------- energy ------
 #
 # Radios sleep outside their own slots. Duty cycle per role, one 60 s frame:

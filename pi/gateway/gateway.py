@@ -63,16 +63,58 @@ class Gateway:
         self.sf.active_slots = set(range(config.SLOT_COUNT))
 
         self.frame_number = 0
+
+        # Downlink command state. The gateway stamps this into every beacon;
+        # `cmd_seq` increments on each new command so nodes act exactly once.
+        self.command = protocol.CMD_NONE
+        self.cmd_seq = 0
+        self.command_set_at = None
+        self.command_frames = 0
+
         self.last_prune = time.time()
         self.counts = {}
         self.stats = {'beacons': 0, 'received': 0, 'acked': 0, 'duplicates': 0}
         self._seen = set()          # (origin, seq) for duplicate suppression
 
+    def set_command(self, command):
+        """Queue a downlink command. Broadcast in every subsequent beacon."""
+        self.command = command
+        self.cmd_seq = (self.cmd_seq + 1) & 0xFF
+        self.command_set_at = time.time()
+        self.command_frames = 0
+        self.log('[gw] command %s queued (seq %d)'
+                 % (protocol.CMD_NAMES.get(command, command), self.cmd_seq))
+        return self.cmd_seq
+
+    def command_state(self):
+        remaining = None
+        if self.command == protocol.CMD_HALT and config.HALT_EXPIRY_FRAMES > 0:
+            remaining = max(0, config.HALT_EXPIRY_FRAMES - self.command_frames)
+        return {
+            'command': protocol.CMD_NAMES.get(self.command, 'none'),
+            'cmdSeq': self.cmd_seq,
+            'setAt': self.command_set_at * 1000.0 if self.command_set_at else None,
+            'framesRemaining': remaining,
+            'frameSeconds': config.FRAME_SECONDS,
+        }
+
     def send_beacon(self):
+        # A HALT the gateway keeps asserting is refreshed each frame; once the
+        # dead-man window elapses the gateway stops asserting it and the nodes
+        # resume on their own. Both ends time out, so neither a lost RESUME
+        # nor a forgotten operator leaves the network silent.
+        if self.command == protocol.CMD_HALT and config.HALT_EXPIRY_FRAMES > 0:
+            self.command_frames += 1
+            if self.command_frames >= config.HALT_EXPIRY_FRAMES:
+                self.log('[gw] HALT expired after %d frames — resuming network'
+                         % config.HALT_EXPIRY_FRAMES)
+                self.set_command(protocol.CMD_RESUME)
+
         packet = protocol.encode_beacon(
             src=self.id, frame_number=self.frame_number,
             epoch=int(time.time()),
-            frame_seconds=config.FRAME_SECONDS, slots=config.SLOT_COUNT)
+            frame_seconds=config.FRAME_SECONDS, slots=config.SLOT_COUNT,
+            command=self.command, cmd_seq=self.cmd_seq)
         self.radio.send(packet, config.BROADCAST_ADDR)
         self.stats['beacons'] += 1
 
@@ -131,7 +173,24 @@ class Gateway:
                     rssi, status.upper(),
                     '  *** FIRE ***' if packet['fire'] else ''))
 
+    def poll_control(self):
+        """Pick up a command issued by api.py through the shared database."""
+        try:
+            pending = db.take_pending_command(self.conn)
+        except Exception as exc:
+            self.log('[gw] control table unavailable: %s' % exc)
+            return
+        if not pending:
+            return
+        lookup = {v: k for k, v in protocol.CMD_NAMES.items()}
+        if pending in lookup:
+            self.set_command(lookup[pending])
+        else:
+            self.log('[gw] ignoring unknown command %r' % pending)
+
     def run_frame(self):
+        self.poll_control()
+
         # ---- slot 0: beacon ----
         # Wake on the boundary, transmit after the guard band, so nodes that
         # wake on the same boundary are listening before the beacon goes out.

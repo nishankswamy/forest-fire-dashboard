@@ -9,10 +9,13 @@ Then from any device on the same network:
     http://<gateway-pi-ip>:5000
 
 Endpoints
-    GET /api/site                    site name, map centre, thresholds
-    GET /api/nodes                   latest reading per node
-    GET /api/nodes/<id>/history?days=7
-    GET /api/health                  uptime + row count, for monitoring
+    GET  /api/site                    site, thresholds, topology, TDMA schedule
+    GET  /api/nodes                   latest reading per node, with route info
+    GET  /api/nodes/<id>/history?days=7
+    GET  /api/routes                  routing actually observed in the last hour
+    GET  /api/command                 current downlink command state
+    POST /api/command                 {"command": "halt"|"resume"|"restart"}
+    GET  /api/health                  uptime + row count, for monitoring
 """
 
 import os
@@ -217,6 +220,54 @@ def history(node_id):
         'smoke': round(row['smoke']),
         'batt': round(row['batt'], 1),
     } for row in rows])
+
+
+ALLOWED_COMMANDS = ('halt', 'resume', 'restart')
+
+
+@app.route('/api/command', methods=['GET', 'POST'])
+def command():
+    """The network's only downlink control.
+
+    POST {"command": "halt" | "resume" | "restart"}
+
+    The command is recorded in the shared database; gateway.py picks it up on
+    its next frame and stamps it into the beacon, which every node hears. It
+    therefore takes up to one frame (default 60 s) to reach cluster A and two
+    to reach cluster B, which relays the beacon onward.
+
+    HALT auto-expires after config.HALT_EXPIRY_FRAMES. That is deliberate: a
+    halted fire-detection network is a silent one, and a latched stop that
+    somebody forgets to clear is a worse failure than the one it prevents.
+    """
+    conn = get_db()
+
+    if request.method == 'GET':
+        row = conn.execute(
+            'SELECT command, issued, consumed FROM control WHERE id=1').fetchone()
+        return jsonify({
+            'command': row['command'] if row else 'none',
+            'issued': (row['issued'] * 1000.0) if row and row['issued'] else None,
+            'delivered': bool(row['consumed']) if row else True,
+            'haltExpiryFrames': config.HALT_EXPIRY_FRAMES,
+            'frameSeconds': config.FRAME_SECONDS,
+            'allowed': list(ALLOWED_COMMANDS),
+        })
+
+    payload = request.get_json(silent=True) or {}
+    cmd = str(payload.get('command', '')).lower().strip()
+    if cmd not in ALLOWED_COMMANDS:
+        return jsonify({'ok': False,
+                        'error': 'command must be one of %s' % (ALLOWED_COMMANDS,)}), 400
+
+    db.request_command(conn, cmd)
+    return jsonify({
+        'ok': True,
+        'command': cmd,
+        'note': 'queued — reaches cluster A within one frame (%ds), '
+                'cluster B within two' % config.FRAME_SECONDS,
+        'haltExpiryFrames': config.HALT_EXPIRY_FRAMES if cmd == 'halt' else None,
+    })
 
 
 @app.route('/api/health')

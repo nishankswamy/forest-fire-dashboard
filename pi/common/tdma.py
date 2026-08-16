@@ -43,6 +43,8 @@ class Superframe:
         self.missed_beacons = 0
 
         self.last_beacon = None       # frame number to rebroadcast, if we relay
+        self.last_command = 0         # command to relay onward with it
+        self.last_cmd_seq = 0
 
         self.tx_slots = set()
         if node_id in config.DATA_SLOT:

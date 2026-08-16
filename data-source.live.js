@@ -42,6 +42,8 @@
   let topology = {};
   let tdma = {};
   let gateway = null;
+  let command = 'none';
+  let commandInfo = {};
 
   function api(path) {
     return fetch(API_BASE + path, { cache: 'no-store' }).then(r => {
@@ -87,7 +89,29 @@
     });
   }
 
+  function sendCommand(cmd) {
+    return fetch(API_BASE + '/api/command', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command: cmd })
+    }).then(r => r.json()).then(res => {
+      if (res.ok) command = cmd;
+      pollCommand();
+      return res;
+    }).catch(err => {
+      console.warn('[live] command failed: ' + err.message);
+      return { ok: false, error: err.message };
+    });
+  }
+
+  function pollCommand() {
+    return api('/api/command')
+      .then(c => { command = c.command || 'none'; commandInfo = c; })
+      .catch(() => {});
+  }
+
   function refresh() {
+    pollCommand();
     if (!running) { emit(); return Promise.resolve(); }
     return api('/api/nodes')
       .then(next => { nodes = next.map(decorate); emit(); })
@@ -161,6 +185,20 @@
       return null;
     },
     clearFire() {},
+
+    /* ---- system control -------------------------------------------
+       Same three names as the simulator, but these travel over the air:
+       api.py records the command, gateway.py stamps it into the next
+       beacon, and every node acts on it. One frame to reach cluster A,
+       two to reach cluster B. */
+    isRunning() { return running && command !== 'halt'; },
+
+    stop() { return sendCommand('halt'); },
+    resume() { return sendCommand('resume'); },
+    restart() { return sendCommand('restart'); },
+
+    get command() { return command; },
+    get commandInfo() { return commandInfo; },
 
     /* ---- routing, mirroring data-source.js so app.js needs no branch ---- */
     routing: {

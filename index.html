@@ -46,6 +46,16 @@
   </div>
 </section>
 
+<!-- ============ SYSTEM HALTED BANNER ============ -->
+<section id="haltBanner" class="halt-banner" hidden>
+  <span class="halt-dot"></span>
+  <div class="halt-body">
+    <strong id="haltTitle">NETWORK HALTED</strong>
+    <span id="haltDetail">All sensor nodes have stopped transmitting.</span>
+  </div>
+  <button id="haltResume" class="btn btn-ghost">Resume now</button>
+</section>
+
 <main class="layout">
 
   <!-- ============ MAP ============ -->
@@ -139,6 +149,14 @@
       <div class="stat"><span class="stat-v" id="nRetries">—</span><span class="stat-k">ACK retries</span></div>
       <div class="stat"><span class="stat-v" id="nMinima">—</span><span class="stat-k">local minima</span></div>
       <div class="stat"><span class="stat-v" id="nPromo">—</span><span class="stat-k">CH promotions</span></div>
+    </div>
+
+    <h3 class="net-sub">System control</h3>
+    <div class="sysctl" id="sysctl">
+      <button id="ctlStop" class="btn btn-ghost btn-warn">Stop</button>
+      <button id="ctlResume" class="btn btn-ghost" hidden>Resume</button>
+      <button id="ctlRestart" class="btn btn-ghost">Restart</button>
+      <span class="sysctl-note" id="ctlNote">Simulation running</span>
     </div>
 
     <h3 class="net-sub">Protocol events</h3>

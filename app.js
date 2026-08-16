@@ -293,6 +293,47 @@
     kill.dataset.action = n.role === 'dead' ? 'revive' : 'kill';
   }
 
+  /* ---------------- system control ---------------- */
+
+  // The simulator acts locally and instantly; live data sends the command over
+  // the air and it takes a frame or two to land. Same three method names on
+  // both sources, so this needs no branch — only the wording differs.
+  const isLive = () => DS.label !== 'simulated';
+
+  function renderSysCtl() {
+    const running = DS.isRunning ? DS.isRunning() : true;
+    const stop = $('ctlStop'), resume = $('ctlResume'), note = $('ctlNote');
+    if (!stop) return;
+
+    stop.hidden = !running;
+    resume.hidden = running;
+
+    if (!isLive()) {
+      note.textContent = running ? 'Simulation running' : 'Simulation stopped';
+    } else if (!running) {
+      const info = DS.commandInfo || {};
+      const mins = info.haltExpiryFrames && info.frameSeconds
+        ? Math.round(info.haltExpiryFrames * info.frameSeconds / 60) : null;
+      note.textContent = 'Network halted' +
+        (mins ? ' — auto-resumes in ~' + mins + ' min' : '');
+    } else {
+      note.textContent = 'Network running';
+    }
+
+    // The halted banner is deliberately loud. A silent fire-detection network
+    // that looks normal is the dangerous state.
+    const banner = $('haltBanner');
+    if (banner) {
+      banner.hidden = running;
+      if (!running) {
+        $('haltTitle').textContent = isLive() ? 'NETWORK HALTED' : 'SIMULATION STOPPED';
+        $('haltDetail').textContent = isLive()
+          ? 'All sensor nodes have stopped transmitting. No fire will be detected.'
+          : 'The model is frozen. No readings, no protocol rounds, no battery drain.';
+      }
+    }
+  }
+
   /* ---------------- network protocol panel ---------------- */
   function renderNetwork() {
     if (!DS.hasRouting) return;
@@ -443,6 +484,7 @@
 
   function onData(next) {
     nodes = next;
+    renderSysCtl();
     renderGateway(); renderRidge();
     renderMarkers(); renderAlert(); renderDetail(); renderList();
     renderTopology(); renderRoute(); renderNetwork();
@@ -529,6 +571,34 @@
     });
 
     $('clearFire').addEventListener('click', function () { DS.clearFire(); });
+
+    // ---- system control ----
+    function confirmAnd(action, message) {
+      // Confirm only on live hardware. Stopping a real fire-detection network
+      // deserves a deliberate second action; stopping a simulation does not.
+      if (isLive() && !window.confirm(message)) return;
+      Promise.resolve(action()).then(() => { renderSysCtl(); renderNetwork(); });
+    }
+
+    $('ctlStop').addEventListener('click', () => confirmAnd(
+      () => DS.stop(),
+      'Halt the sensor network?\n\nAll nodes stop transmitting and no fire ' +
+      'will be detected until the network resumes.'));
+
+    $('ctlResume').addEventListener('click', () => confirmAnd(
+      () => DS.resume(), 'Resume the network?'));
+
+    $('ctlRestart').addEventListener('click', () => confirmAnd(
+      () => DS.restart(),
+      'Restart the whole system?\n\nSequence numbers, buffers and any ' +
+      'promoted cluster head are reset. Stored history is kept.'));
+
+    const banner = $('haltResume');
+    if (banner) banner.addEventListener('click', () => {
+      Promise.resolve(DS.resume()).then(() => { renderSysCtl(); renderNetwork(); });
+    });
+
+    renderSysCtl();
 
     setInterval(drawHistory, 12000);
   });

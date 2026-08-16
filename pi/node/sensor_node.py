@@ -79,13 +79,18 @@ class SensorNode:
 
         # Backup-head state. `standby_for` is the head we cover; once promoted
         # we adopt its slots, which are free precisely because it is silent.
+        # Remote command state, driven by the beacon.
+        self.halted = False
+        self.last_cmd_seq = None
+        self.halted_frames = 0
+
         self.standby_for = config.BACKUP_OF.get(self.id)
         self.promoted = False
         self.head_silent_frames = 0
         self.MAX_BUFFER = 64
         self.stats = {
             'sent': 0, 'delivered': 0, 'dropped': 0, 'retries': 0,
-            'repairs': 0, 'relayed': 0, 'acked': 0, 'beacons': 0,
+            'repairs': 0, 'relayed': 0, 'acked': 0, 'beacons': 0, 'commands': 0,
         }
 
     # ---- helpers -----------------------------------------------------
@@ -169,7 +174,11 @@ class SensorNode:
             beacon, _rssi = got
             self.sf.on_beacon(beacon['seq'], received_at=self.sf.frame_start)
             self.sf.last_beacon = beacon['seq']
+            self.sf.last_command = beacon.get('command', protocol.CMD_NONE)
+            self.sf.last_cmd_seq = beacon.get('cmd_seq', 0)
             self.stats['beacons'] += 1
+            self.apply_command(beacon.get('command', protocol.CMD_NONE),
+                               beacon.get('cmd_seq', 0))
         else:
             self.sf.note_missed_beacon()
             if not self.sf.synced:
@@ -240,6 +249,64 @@ class SensorNode:
             return config.BEACON_RELAY_SLOT[self.standby_for]
         return None
 
+    def apply_command(self, command, cmd_seq):
+        """Act on a downlink command carried in the beacon.
+
+        Acted on once per cmd_seq value. The beacon repeats every frame, so
+        without that guard RESTART would fire continuously and HALT could not
+        be distinguished from a stale repeat.
+        """
+        if command == protocol.CMD_NONE:
+            return
+        if cmd_seq == self.last_cmd_seq:
+            return                       # already handled this one
+        self.last_cmd_seq = cmd_seq
+
+        if command == protocol.CMD_HALT:
+            self.halted = True
+            self.halted_frames = 0
+            self.stats['commands'] += 1
+            self.log('[%d] HALT received — transmission stopped, still listening'
+                     % self.id)
+
+        elif command == protocol.CMD_RESUME:
+            if self.halted:
+                self.log('[%d] RESUME received — normal operation' % self.id)
+            self.halted = False
+            self.halted_frames = 0
+            self.stats['commands'] += 1
+
+        elif command == protocol.CMD_RESTART:
+            self.log('[%d] RESTART received — clearing state' % self.id)
+            self.seq = 0
+            self.buffer = []
+            self._seen = set()
+            self.fire_streak = 0
+            self.previous = None
+            self.halted = False
+            self.halted_frames = 0
+            self.head_silent_frames = 0
+            if self.promoted:
+                # Step back down; the primary head is presumed restarted too.
+                self.promoted = False
+                self.role = config.role_of(self.id)
+                self.sf = tdma.Superframe(self.id)
+                self.routes = config.routes_for(self.id)
+                self.log('[%d] stepped down from promoted head' % self.id)
+            self.stats['commands'] += 1
+
+    def check_halt_expiry(self):
+        """Dead-man timer. A halted fire-detection network is a silent one, so
+        HALT lapses unless the gateway keeps asserting it."""
+        if not self.halted or config.HALT_EXPIRY_FRAMES <= 0:
+            return
+        self.halted_frames += 1
+        if self.halted_frames >= config.HALT_EXPIRY_FRAMES:
+            self.halted = False
+            self.halted_frames = 0
+            self.log('[%d] HALT expired after %d frames — resuming automatically'
+                     % (self.id, config.HALT_EXPIRY_FRAMES))
+
     def do_beacon_relay_slot(self):
         """Rebroadcast the beacon for members that cannot hear the gateway.
 
@@ -250,10 +317,15 @@ class SensorNode:
         frame_number = self.sf.last_beacon
         if frame_number is None:
             return                       # nothing to relay yet
+        # Relay the command along with the sync. Without this, cluster B —
+        # which only ever hears a relayed beacon — could never be commanded.
         self.radio.send(
             protocol.encode_beacon(src=self.id, frame_number=frame_number,
                                    frame_seconds=config.FRAME_SECONDS,
-                                   slots=config.SLOT_COUNT),
+                                   slots=config.SLOT_COUNT,
+                                   command=getattr(self.sf, 'last_command',
+                                                   protocol.CMD_NONE),
+                                   cmd_seq=getattr(self.sf, 'last_cmd_seq', 0)),
             config.BROADCAST_ADDR)
 
     def do_own_data_slot(self):
@@ -409,6 +481,26 @@ class SensorNode:
             self.radio.wake()
             self.clock.sleep_until(self.sf.slot_window(slot)[0])
 
+            # While halted we suppress DATA only. Two slots stay active because
+            # they are control plane, not payload:
+            #
+            #   - our beacon LISTEN slot, which is how RESUME reaches us;
+            #   - our beacon RELAY slot, if we have one.
+            #
+            # The relay matters more than it looks. Cluster B hears only a
+            # relayed beacon, so a halted CH-A that stopped relaying would cut
+            # cluster B off from the command channel entirely: it would never
+            # receive the HALT, would keep transmitting, and could never be
+            # resumed over the air. Halting must propagate, not partition.
+            control_slots = {config.beacon_listen_slot(self.id)}
+            relay = self.beacon_relay_slot_i_own()
+            if relay is not None:
+                control_slots.add(relay)
+
+            if self.halted and slot not in control_slots:
+                self.radio.sleep()
+                continue
+
             if slot == config.beacon_listen_slot(self.id):
                 self.do_beacon_slot()
             elif slot == self.beacon_relay_slot_i_own():
@@ -422,6 +514,7 @@ class SensorNode:
 
             self.radio.sleep()
 
+        self.check_halt_expiry()
         self.clock.sleep_until(self.sf.frame_start + self.sf.frame_seconds)
         self.sf.advance_frame()
 

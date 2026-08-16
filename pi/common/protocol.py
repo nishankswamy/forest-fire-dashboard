@@ -31,6 +31,17 @@ BEACON reuses the payload area — it carries no sensor data:
     6    4     epoch     gateway unix time, low 32 bits
     10   1     frame_s   frame length in seconds
     11   1     slots     slot count in the superframe
+    12   1     command   0 NONE, 1 HALT, 2 RESUME, 3 RESTART
+    13   1     cmd_seq   increments per command; nodes act once per value
+
+The command field is the network's only DOWNLINK. Everything else flows node
+to gateway; this is how the gateway talks back. It rides in the beacon
+deliberately — every node already listens for the beacon once per frame to
+stay synchronised, so commands cost no extra airtime and need no extra slot.
+
+`cmd_seq` exists because the beacon repeats every frame. Without it a node
+could not distinguish "the same HALT I already acted on" from "a new HALT",
+and RESTART in particular would fire on every frame forever.
 
 At 2400 bps a 16-byte packet plus the module's own framing is ~77 ms on air,
 which is why a 2000 ms slot is generous even with three retries.
@@ -45,6 +56,15 @@ PACKET_SIZE = 16
 TYPE_BEACON = 1
 TYPE_DATA = 2
 TYPE_ACK = 3
+
+# Downlink commands, carried in the beacon.
+CMD_NONE = 0
+CMD_HALT = 1        # stop transmitting; keep listening so RESUME can arrive
+CMD_RESUME = 2      # return to normal operation
+CMD_RESTART = 3     # reset sequence numbers, buffers and any promotion
+
+CMD_NAMES = {CMD_NONE: 'none', CMD_HALT: 'halt',
+             CMD_RESUME: 'resume', CMD_RESTART: 'restart'}
 
 FLAG_FIRE = 0x01
 FLAG_SENSOR_ERROR = 0x02
@@ -115,12 +135,14 @@ def encode_ack(src, dst, origin, seq):
     return _finish(body)
 
 
-def encode_beacon(src, frame_number, epoch=None, frame_seconds=60, slots=8):
-    """Broadcast frame sync. Every node aligns its slot clock to this."""
+def encode_beacon(src, frame_number, epoch=None, frame_seconds=60, slots=8,
+                  command=CMD_NONE, cmd_seq=0):
+    """Broadcast frame sync, and the only downlink the network has."""
     body = _HEAD.pack(VERSION, TYPE_BEACON, int(src) & 0xFF, 255,
                       0, int(frame_number) & 0xFF)
     body += _BEACON.pack(int(epoch if epoch is not None else time.time()) & 0xFFFFFFFF,
-                         int(frame_seconds) & 0xFF, int(slots) & 0xFF, 0, 0, 0)
+                         int(frame_seconds) & 0xFF, int(slots) & 0xFF,
+                         int(command) & 0xFF, int(cmd_seq) & 0xFF, 0)
     return _finish(body)
 
 
@@ -141,8 +163,9 @@ def decode(raw):
     out = {'type': ptype, 'src': src, 'dst': dst, 'origin': origin, 'seq': seq}
 
     if ptype == TYPE_BEACON:
-        epoch, frame_s, slots, _a, _b, _c = _BEACON.unpack(body[6:])
-        out.update({'epoch': epoch, 'frame_seconds': frame_s, 'slots': slots})
+        epoch, frame_s, slots, command, cmd_seq, _pad = _BEACON.unpack(body[6:])
+        out.update({'epoch': epoch, 'frame_seconds': frame_s, 'slots': slots,
+                    'command': command, 'cmd_seq': cmd_seq})
         return out
 
     if ptype == TYPE_ACK:

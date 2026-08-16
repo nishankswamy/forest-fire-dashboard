@@ -34,6 +34,17 @@ CREATE TABLE IF NOT EXISTS readings (
 );
 CREATE INDEX IF NOT EXISTS idx_readings_node_ts ON readings (node_id, ts);
 CREATE INDEX IF NOT EXISTS idx_readings_ts ON readings (ts);
+
+-- Control channel between api.py and gateway.py. They are separate processes
+-- and already share this database, so a one-row table is a simpler and more
+-- robust IPC than a socket or signal: it survives either side restarting.
+CREATE TABLE IF NOT EXISTS control (
+    id       INTEGER PRIMARY KEY CHECK (id = 1),
+    command  TEXT    NOT NULL DEFAULT 'none',
+    issued   REAL    NOT NULL DEFAULT 0,
+    consumed INTEGER NOT NULL DEFAULT 1
+);
+INSERT OR IGNORE INTO control (id, command, issued, consumed) VALUES (1, 'none', 0, 1);
 """
 
 # Columns added after the v1 schema shipped. Existing databases are migrated
@@ -142,6 +153,24 @@ def route_summary(conn, since_seconds=3600):
         ORDER BY node_id, n DESC
     """, (since,)).fetchall()
     return [dict(row) for row in rows]
+
+
+def request_command(conn, command):
+    """Called by api.py. Records a command for the gateway to pick up."""
+    conn.execute('UPDATE control SET command=?, issued=?, consumed=0 WHERE id=1',
+                 (command, time.time()))
+    conn.commit()
+
+
+def take_pending_command(conn):
+    """Called by gateway.py once per frame. Returns a command name if one is
+    waiting, and marks it consumed so it is acted on exactly once."""
+    row = conn.execute('SELECT command, consumed FROM control WHERE id=1').fetchone()
+    if row is None or row['consumed']:
+        return None
+    conn.execute('UPDATE control SET consumed=1 WHERE id=1')
+    conn.commit()
+    return row['command']
 
 
 def prune(conn, retention_days=7):

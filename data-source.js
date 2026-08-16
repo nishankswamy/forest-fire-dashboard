@@ -209,9 +209,14 @@
   // ---- live tick ----------------------------------------------------
   const subscribers = [];
   let gatewayOn = true;
+  let running = true;      // simulation clock; distinct from gatewayOn
   let tick = 0;
 
   function step() {
+    // Stopped means the model does not advance at all — no protocol rounds,
+    // no sensor drift, no battery drain. Gateway OFF is different: the world
+    // keeps turning, we just stop hearing about it.
+    if (!running) return;
     if (!gatewayOn) { emit(); return; }
     tick++;
 
@@ -356,6 +361,47 @@
       }
       fireNodeId = null;
       emit();
+    },
+
+    /* ---- system control ---------------------------------------------
+       On the simulator these act immediately and locally. The live source
+       exposes the same three names but sends them over the air, so app.js
+       needs no branch. */
+    isRunning() { return running; },
+
+    stop() {
+      running = false;
+      emit();
+      return { ok: true, command: 'halt' };
+    },
+
+    resume() {
+      running = true;
+      emit();
+      return { ok: true, command: 'resume' };
+    },
+
+    restart() {
+      // Rebuild live state without touching the 7-day history — a restart
+      // clears sequence numbers and buffers, it does not erase the record.
+      if (hasRouting) {
+        window.Routing.configure({
+          gateway: GATEWAY,
+          obstructions: OBSTRUCTIONS,
+          nodes: NODE_DEFS.map(d => ({
+            id: d.id, lat: SITE.lat + d.dLat, lng: SITE.lng + d.dLng
+          }))
+        });
+        OFFLINE_AT_START.forEach(id => window.Routing.kill(id));
+      }
+      NODE_DEFS.forEach(d => {
+        state[d.id].online = !OFFLINE_AT_START.has(d.id);
+      });
+      fireNodeId = null;
+      tick = 0;
+      running = true;
+      emit();
+      return { ok: true, command: 'restart' };
     },
 
     /* ---- routing / topology ----------------------------------------

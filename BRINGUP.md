@@ -43,13 +43,12 @@ This is the single most common cause of "the radio doesn't work".
    to the Raspberry Pi. A is USB, C is a pass-through.
 
 2. **Remove the M0 and M1 jumper caps entirely.** Put them somewhere safe.
-
    The driver controls the module's power mode by driving these pins from
    BCM22 and BCM27. **A pin reads HIGH when its cap is removed.** With the caps
    fitted, the Pi physically cannot change the radio's mode — you lose all power
    saving, and the module may sit in the wrong mode entirely.
 
-3. **Antenna screwed on.**
+3. **Antenna screwed on**, finger-tight, before any power is applied.
 
 **Checkpoint:** all six HATs have jumper on B, no M0/M1 caps, antenna attached.
 

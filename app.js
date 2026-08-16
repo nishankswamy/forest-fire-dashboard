@@ -69,6 +69,7 @@
   // The ridge that blocks LoRa links. Drawing it matters: without it on screen
   // the local-minima behaviour looks arbitrary rather than caused by terrain.
   function renderRidge() {
+    if (!map) return;
     if (ridgeLayer) { map.removeLayer(ridgeLayer); ridgeLayer = null; }
     if (!show.ridge || !DS.obstructions) return;
 
@@ -79,8 +80,11 @@
     )).addTo(map);
   }
 
+  // Called at boot AND on every data tick. On live data the gateway position
+  // arrives with /api/site, which resolves after boot — draw it once at boot
+  // and the marker never appears at all.
   function renderGateway() {
-    if (!DS.gateway) return;
+    if (!map || !DS.gateway) return;
     if (!gatewayMarker) {
       gatewayMarker = L.marker([DS.gateway.lat, DS.gateway.lng], {
         icon: L.divIcon({
@@ -293,18 +297,30 @@
   function renderNetwork() {
     if (!DS.hasRouting) return;
     const snap = DS.routing.snapshot();
-    const st = DS.routing.stats();
-    if (!snap || !st) return;
+    if (!snap) return;
 
-    $('netRound').textContent = 'round ' + st.round;
+    // Live hardware reports topology but no per-round counters — the gateway
+    // sees delivered packets, not the retries and elections that happened out
+    // in the field. Render what exists rather than blanking the whole panel.
+    const st = DS.routing.stats();
+
+    $('netRound').textContent = st ? 'round ' + st.round : 'live';
     $('nHeads').textContent   = snap.heads.length;
     $('nBackups').textContent = snap.backups.length;
 
-    const total = st.delivered + st.dropped;
-    $('nPdr').textContent     = total ? (100 * st.delivered / total).toFixed(1) + '%' : '—';
-    $('nRetries').textContent = st.retries;
-    $('nMinima').textContent  = st.localMinima;
-    $('nPromo').textContent   = st.promotions;
+    if (st) {
+      const total = st.delivered + st.dropped;
+      $('nPdr').textContent     = total ? (100 * st.delivered / total).toFixed(1) + '%' : '—';
+      $('nRetries').textContent = st.retries;
+      $('nMinima').textContent  = st.localMinima;
+      $('nPromo').textContent   = st.promotions;
+    } else {
+      const online = nodes.filter(n => n.online).length;
+      $('nPdr').textContent     = online + '/' + nodes.length;
+      $('nRetries').textContent = '—';
+      $('nMinima').textContent  = '0';
+      $('nPromo').textContent   = '—';
+    }
 
     const ul = $('eventList');
     const scroll = ul.scrollTop;
@@ -427,6 +443,7 @@
 
   function onData(next) {
     nodes = next;
+    renderGateway(); renderRidge();
     renderMarkers(); renderAlert(); renderDetail(); renderList();
     renderTopology(); renderRoute(); renderNetwork();
     $('lastSync').textContent = DS.isGatewayOn()

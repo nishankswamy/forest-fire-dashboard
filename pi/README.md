@@ -70,6 +70,12 @@ Pi must use the same value or they won't hear each other.
 
 ---
 
+> **First time bringing up hardware?** Follow
+> [`../BRINGUP.md`](../BRINGUP.md) instead — it is the same information
+> sequenced as a step-by-step procedure with checkpoints, so a failure at any
+> stage has exactly one likely cause. This file is the reference; that one is
+> the runbook.
+
 ## Fast path — `setup.sh`
 
 Steps 2, 3, 5 and 8 below are automated. On each Pi, once the repo is cloned:

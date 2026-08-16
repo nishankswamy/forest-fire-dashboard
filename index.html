@@ -192,10 +192,10 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<!-- routing.js must load BEFORE the data source: data-source.js detects it at
-     startup and configures the topology from it. -->
-<script src="routing.js"></script>
-<script src="data-source.js"></script>
-<script src="app.js"></script>
+<!-- boot.js loads routing.js, then picks the data source, then app.js.
+     Served by the gateway Pi -> live data. Anywhere else -> simulated.
+     Force either with ?live or ?sim. See boot.js for why this is not just
+     two hardcoded script tags. -->
+<script src="boot.js"></script>
 </body>
 </html>

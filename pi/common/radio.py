@@ -59,35 +59,69 @@ class Radio:
 
     # ---- power ------------------------------------------------------
 
+    # Waveshare's mode table for the SX126x HAT. A pin is HIGH when its jumper
+    # cap is REMOVED, which is why setup instructions insist the caps come off:
+    # with them fitted the Pi cannot drive these at all.
+    #
+    #   M0  M1   mode
+    #   0   0    transmission  (normal TX/RX)
+    #   0   1    configuration
+    #   1   0    WOR (wake on radio)
+    #   1   1    deep sleep     — 2 uA, against 11 mA receiving
+    #
+    # The driver waits 100 ms after every mode change. Matching that matters:
+    # transmit too soon after waking and the frame goes out while the module is
+    # still switching, which looks like random packet loss.
+    MODE_SETTLE_S = 0.1
+
+    def _mode_pins_available(self):
+        return (self._module is not None and
+                hasattr(self._module, 'M0') and hasattr(self._module, 'M1'))
+
     def sleep(self):
-        """Drop the module into low-power mode between slots."""
+        """Drop the module into deep sleep between TDMA slots."""
         if self._module is None or not self.awake:
             return
-        self.awake = False
         if not config.RADIO_SLEEP_BETWEEN_SLOTS:
-            self.awake = True
             return
+        if not self._mode_pins_available():
+            self._warn_no_sleep()
+            return
+
         try:
-            # M0=1, M1=1 is the module's sleep/configuration mode.
             import RPi.GPIO as GPIO
             GPIO.output(self._module.M0, GPIO.HIGH)
             GPIO.output(self._module.M1, GPIO.HIGH)
-        except Exception:
-            # No GPIO (dev laptop) or a driver that manages the pins itself —
-            # not fatal, we simply do not get the power saving.
-            self.awake = True
+            self.awake = False
+        except Exception as exc:
+            self._warn_no_sleep(exc)
 
     def wake(self):
         if self._module is None or self.awake:
             return
         self.awake = True
+        if not self._mode_pins_available():
+            return
+
         try:
             import RPi.GPIO as GPIO
             GPIO.output(self._module.M0, GPIO.LOW)
             GPIO.output(self._module.M1, GPIO.LOW)
-            time.sleep(0.01)          # module needs a moment to settle
-        except Exception:
-            pass
+            time.sleep(self.MODE_SETTLE_S)
+        except Exception as exc:
+            self._warn_no_sleep(exc)
+
+    def _warn_no_sleep(self, exc=None):
+        """Say so once, loudly. Silently losing the power saving is worse than
+        the failure itself — everything keeps working and battery life is a
+        fraction of what the duty-cycle figures claim."""
+        if getattr(self, '_sleep_warned', False):
+            return
+        self._sleep_warned = True
+        self.awake = True
+        print('[radio] WARNING: cannot control M0/M1 — radio will stay awake. '
+              'Duty-cycle power saving is NOT active.%s'
+              % ('  (%s)' % exc if exc else ''), flush=True)
 
     # ---- transmit / receive -----------------------------------------
 

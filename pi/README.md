@@ -95,6 +95,34 @@ Reboot when it says to — the serial and SPI changes need it.
 
 ---
 
+## Radio power modes (why the jumper caps must come off)
+
+The HAT's mode is set by two pins, and **a pin reads HIGH when its jumper cap is
+removed**. With the caps fitted, the Pi cannot drive them at all:
+
+| M0 | M1 | Mode | Current |
+|---|---|---|---|
+| 0 | 0 | transmission (normal TX/RX) | 100 mA TX / 11 mA RX |
+| 0 | 1 | configuration | — |
+| 1 | 0 | WOR (wake on radio) | — |
+| 1 | 1 | **deep sleep** | **2 µA** |
+
+`common/radio.py` drives both HIGH between TDMA slots and both LOW to wake,
+waiting 100 ms after each change — the same settle time Waveshare's own driver
+uses. Transmitting sooner than that sends the frame while the module is still
+switching, which presents as random packet loss.
+
+If it cannot control those pins for any reason, it prints:
+
+```
+[radio] WARNING: cannot control M0/M1 — radio will stay awake.
+        Duty-cycle power saving is NOT active.
+```
+
+Everything keeps working; you just lose the power saving. Watch for that line on
+first boot — silently drawing 11 mA instead of 2 µA would make the duty-cycle
+figures in this document meaningless.
+
 ## Step 1 — HAT jumpers (all Pis)
 
 - **UART selection jumper → position B** (LoRa module talks to the Pi)

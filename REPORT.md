@@ -109,7 +109,58 @@ Design and implement a ground-based forest fire detection system that:
 | O7 | Build a dashboard showing live readings, topology and alerts |
 | O8 | Verify all of the above before hardware deployment |
 
-### 1.4 Scope and Limitations
+### 1.4 Research Questions
+
+The objectives above describe what was built. The questions below are what the
+work was designed to answer, and Section 8 answers each with its evidence.
+
+**RQ1 — In a small, fixed-topology LoRa network, can channel access be arranged
+so that packet collisions are structurally impossible rather than statistically
+unlikely?**
+
+The distinction matters. Contention-based access reduces collision probability;
+it does not eliminate the possibility. For a safety system, a guarantee is
+worth more than a low rate. *Addressed in §5.2, evidenced in §7.2.*
+
+**RQ2 — Can the local-minimum failure mode of geographic routing be eliminated
+by design, rather than recovered from at runtime?**
+
+GPSR and its descendants treat local minima as something to detect and escape.
+An alternative is to choose a forwarding scheme in which the condition cannot
+arise. *Addressed in §5.3, evidenced in §7.3.*
+
+**RQ3 — How does the suitability of established WSN protocols vary with network
+size?**
+
+The clustering and geographic-routing literature evaluates at tens to hundreds
+of nodes. Whether those results transfer downward to a six-node deployment is
+rarely examined, and this project is positioned to test it directly by
+implementing both regimes. *Addressed in §5.3 and §5.2, evidenced in §7.6–7.7.*
+
+**RQ4 — Does cluster-head rotation extend network lifetime?**
+
+LEACH's central claim. The question is whether "lifetime" means time to first
+node death, time to network partition, or total time to exhaustion — the three
+need not move together. *Evidenced in §7.6.*
+
+**RQ5 — Is the standard first-order radio energy model valid for
+single-board-computer nodes?**
+
+The model assumes the radio dominates the energy budget. That assumption is
+inherited widely without re-examination. *Addressed in §5.5.*
+
+**RQ6 — Do guarantees established in simulation hold on physical hardware?**
+
+Open at the time of writing. Simulation verifies protocol logic against a
+modelled channel; it cannot verify propagation, clock stability, or driver
+behaviour. *Measurement plan in §7.10.*
+
+**RQ7 — Is battery operation viable for this node design?**
+
+Open, and the analysis in §5.5 and §9 suggests the answer is no for reasons
+outside the communication subsystem. *Discussed in §5.5.*
+
+### 1.5 Scope and Limitations
 
 **In scope.** A six-node network (one gateway, two cluster heads, three sensor
 nodes) over a site of a few square kilometres; a fixed, surveyed topology; a
@@ -503,6 +554,21 @@ principal argument for using microcontrollers at the sensor nodes and reserving
 a Pi for the gateway in any production deployment — a recommendation carried
 into Section 9.
 
+**A limit on the scope of this analysis.** Everything above concerns the
+*communication* subsystem. The MQ-2 gas sensor has a heating element drawing
+approximately 150 mA at 5 V — around 750 mW — and it draws it **continuously**.
+The element also requires an extended preheat before its readings stabilise, so
+it cannot meaningfully be duty-cycled the way the radio can.
+
+That load exceeds the entire radio budget and exceeds the Pi's own sleep floor.
+The duty-cycle figures in this report are therefore accurate statements about
+the *radio*, and the radio is not what limits battery life on this node design.
+This is the substance of RQ7, and it qualifies rather than contradicts the RQ5
+finding: identifying the wrong dominant term is exactly the error the first-order
+model produces, and the correction has to be applied to the whole node, not just
+its transceiver. A battery-powered deployment needs a gas sensor that can be
+gated, or must accept mains or solar supply.
+
 ### 5.6 Radio Power Management
 
 The SX1262 HAT's mode is selected by two pins:
@@ -544,6 +610,31 @@ timescales.
 
 The decision is evaluated **on the node**, so a node still knows it is
 observing a fire when the gateway link is unavailable.
+
+### 5.8 Remote Control and the Fail-Safe
+
+The protocol as described is uplink-only: nodes transmit, the gateway
+acknowledges. Operationally that is insufficient — halting or restarting the
+network otherwise means physically visiting five nodes.
+
+A downlink was added without any additional airtime by placing a command field
+in the **beacon**, which every node already receives once per frame to stay
+synchronised. Three commands are defined: HALT, RESUME and RESTART. Two design
+points are worth recording.
+
+**Commands must be idempotent.** The beacon repeats every frame, so a node
+receiving HALT would otherwise re-apply it continuously, and RESTART would fire
+forever. A command sequence number, incremented once per issued command, makes
+each act exactly once.
+
+**HALT must expire.** A halted fire-detection network is a silent one. The
+realistic failure is not a technical fault but a human one: somebody halts the
+system for a demonstration and forgets to resume it. HALT therefore carries a
+dead-man timer at both ends — the gateway stops asserting it after
+`HALT_EXPIRY_FRAMES`, and each node independently resumes if it has been halted
+that long. Neither a lost RESUME nor a forgetful operator can leave the network
+dark indefinitely. A latched stop would be a worse hazard than the one the
+control exists to address.
 
 ---
 
@@ -747,7 +838,7 @@ rather than loop.
 
 ### 7.8 Defects Identified by Simulation
 
-The network simulator identified four defects that code review had not:
+The network simulator identified five defects that code review had not:
 
 | # | Defect | Consequence |
 |---|---|---|
@@ -755,10 +846,18 @@ The network simulator identified four defects that code review had not:
 | 2 | No beacon relay | Cluster B, out of gateway range by design, could never synchronise |
 | 3 | Listen slots hand-listed rather than derived from routes | CH-A slept through CH-B's transmission slot; CH-B's own readings had nowhere to land |
 | 4 | Failover triggered by beacon silence | A backup seized the slots of a functioning head, producing 48 collisions |
+| 5 | HALT suppressed *all* transmission, including the beacon relay | A halted CH-A stopped relaying sync, severing cluster B from the command channel entirely. It never received the HALT, kept transmitting, and could not be resumed over the air |
 
 Defects 1 and 3 would have presented on hardware as intermittent, difficult
 data loss. Defect 4 would have manifested only under head failure — precisely
 the condition the mechanism exists to handle.
+
+Defect 5 is instructive beyond its fix. It shows that **control-plane traffic
+and payload traffic cannot be suppressed by the same switch**: the beacon relay
+carries the very command that would undo the halt, so silencing it makes the
+halt irreversible. The corrected implementation suppresses data while keeping
+both the beacon listen and beacon relay slots active. Halting must propagate,
+not partition.
 
 ### 7.9 API and Dashboard Verification
 
@@ -799,7 +898,21 @@ Against the stated objectives:
 | O5 Energy minimisation | Achieved in design — 6.7% member duty cycle |
 | O6 Cluster head failover | Achieved — promotion verified, collision-free |
 | O7 Dashboard | Achieved — live and simulated sources |
-| O8 Pre-deployment verification | Achieved — simulator found four defects |
+| O8 Pre-deployment verification | Achieved — simulator found five defects |
+
+### 8.1 Answers to the Research Questions
+
+| RQ | Answer | Evidence |
+|---|---|---|
+| **RQ1** Collisions impossible by design? | **Yes.** TDMA superframe, every slot owned by exactly one radio | 0 collisions in 184 transmissions (§7.2). Justification is specific, not generic: node 2 and CH-B are a hidden-terminal pair, so carrier sense is blind to precisely the case that matters |
+| **RQ2** Local minima eliminable by design? | **Yes, at this scale.** Explicit ordered next-hop tables make no geometric decision, so the condition cannot arise | 100% delivery with no recovery logic (§7.3). Contrast: the 50-node simulator, using greedy forwarding, hit 11 local minima under the same terrain |
+| **RQ3** Does protocol suitability vary with scale? | **Yes, and it inverts.** The correct choices at 6 nodes are the opposite of those at 50 | Both regimes implemented and measured (§7.2–7.7). This is the project's principal claim |
+| **RQ4** Does head rotation extend network lifetime? | **Only partly — and not in the way usually claimed.** It delays the *first* death by 45% (round 307 vs 212) and cuts head-duty spread from σ 72.6 to 28.4. But half-network death is essentially unchanged: 317 vs 320 | §7.6. **Rotation equalises node lifetime rather than extending total network life.** That is precisely its intended function, and a more informative result than a uniform improvement |
+| **RQ5** Is the first-order radio model valid for SBC nodes? | **No.** Applied unmodified it predicted zero deaths in 400 rounds — it assumes motes at microjoules per packet, whereas a Pi 4 draws ~2.1 W awake | §5.5. Required adding a platform baseline term. Battery life is governed by wake time, not transmit power |
+| **RQ6** Do simulated guarantees hold on hardware? | **Open.** Not yet measurable | Measurement plan in §7.10 |
+| **RQ7** Is battery operation viable? | **Open, and probably no** — for reasons outside the communication subsystem | §5.5, §9. The MQ-2's continuous heater load exceeds the entire radio budget |
+
+### 8.2 Contributions
 
 The principal engineering contribution is not any individual mechanism, all of
 which exist in the literature, but the demonstration that **protocol choice is
@@ -809,9 +922,15 @@ correct at scale and actively harmful at small deployment size; scheduled
 access and static routing are correct at small size and unscalable. Building
 and measuring both regimes makes the trade explicit rather than assumed.
 
-A secondary contribution is methodological. Executing the actual deployment
+The two most transferable findings are the **negative** ones. RQ4 shows that
+cluster-head rotation redistributes rather than extends, which qualifies a
+claim frequently repeated without that distinction. RQ5 shows that a widely
+inherited energy model does not apply to single-board-computer nodes, which
+matters because a great deal of recent WSN work uses exactly that hardware.
+
+A third contribution is methodological. Executing the actual deployment
 firmware against a simulated channel — rather than a separate model of it —
-identified four defects before any hardware was connected, two of which would
+identified five defects before any hardware was connected, two of which would
 have presented as intermittent faults that are extremely difficult to diagnose
 in the field.
 

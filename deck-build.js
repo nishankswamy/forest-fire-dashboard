@@ -640,70 +640,76 @@ function bullets(s, items, x, y, w, h, size, color) {
 }
 
 // =========================================================================
-// 11 — ENERGY
+// 11 — ENERGY  (RQ5 + RQ7)
 // =========================================================================
 {
   const s = lightSlide();
-  kicker(s, 'Energy');
-  title(s, 'The standard model was wrong for this hardware');
+  kicker(s, 'RQ5 + RQ7 — energy', C.ember);
+  title(s, 'The radio is 1% of the problem');
 
-  card(s, 0.6, 1.5, 5.9, 2.35, C.white);
-  s.addText('What went wrong', { x: 0.95, y: 1.75, w: 5.2, h: 0.35, margin: 0,
-    fontFace: HEAD, fontSize: 17, bold: true, color: C.ink });
-  s.addText('The LEACH first-order radio model gave ZERO node deaths in 400 rounds. ' +
-    'It was formulated for motes — microcontrollers where the radio dominates and a ' +
-    'packet costs microjoules. Per transmission it predicted ~2.4 mJ against a 12 kJ ' +
-    'battery: depletion would take millions of rounds.', {
-    x: 0.95, y: 2.15, w: 5.2, h: 1.5, margin: 0,
-    fontFace: BODY, fontSize: 12, color: C.muted, lineSpacing: 17 });
+  s.addText('The standard WSN energy model accounts for the transceiver. On this ' +
+    'hardware the transceiver is a rounding error — so every optimisation in this ' +
+    'project acts on 1% of the budget.', {
+    x: 0.6, y: 1.4, w: 11.9, h: 0.5, margin: 0,
+    fontFace: BODY, fontSize: 14, italic: true, color: C.muted });
 
-  card(s, 0.6, 4.05, 5.9, 2.6, C.forest2);
-  s.addText('The correction', { x: 0.95, y: 4.3, w: 5.2, h: 0.35, margin: 0,
-    fontFace: HEAD, fontSize: 17, bold: true, color: C.white });
-  s.addText('A Raspberry Pi 4 draws ~2.1 W awake against milliwatts of radio. The SoC ' +
-    'dominates entirely. Adding a platform baseline term made the model behave.', {
-    x: 0.95, y: 4.7, w: 5.2, h: 0.85, margin: 0,
-    fontFace: BODY, fontSize: 12, color: C.moss2, lineSpacing: 17 });
-  s.addText('Battery life is set by how long a node stays AWAKE — not by transmit ' +
-    'power or packet size.', {
-    x: 0.95, y: 5.62, w: 5.2, h: 0.8, margin: 0,
-    fontFace: BODY, fontSize: 13, bold: true, color: C.ember, lineSpacing: 19 });
-
-  s.addText('Rotating the cluster-head role', {
-    x: 6.9, y: 1.5, w: 5.8, h: 0.4, margin: 0,
-    fontFace: HEAD, fontSize: 19, bold: true, color: C.ink });
-
-  s.addChart(pres.ChartType.bar, [
-    { name: 'Rotation ON', labels: ['First node death (round)'], values: [307] },
-    { name: 'Rotation OFF', labels: ['First node death (round)'], values: [212] }
-  ], {
-    x: 6.9, y: 1.95, w: 5.8, h: 2.0,
-    barDir: 'bar', barGrouping: 'clustered',
-    chartColors: [C.moss, 'C6CFC8'],
-    showValue: true, dataLabelPosition: 'outEnd',
-    dataLabelColor: C.ink, dataLabelFontFace: BODY, dataLabelFontSize: 12,
-    showLegend: true, legendPos: 'b', legendFontSize: 10, legendColor: C.muted,
-    catAxisLabelColor: C.muted, catAxisLabelFontSize: 10,
-    valAxisLabelColor: C.muted, valAxisLabelFontSize: 9,
-    valGridLine: { color: 'E4EAE5', size: 1 }, catGridLine: { style: 'none' },
-    valAxisMaxVal: 350
+  // component share, busiest node
+  card(s, 0.6, 2.0, 5.9, 2.5, C.white);
+  s.addText('Where the watts go — CH-A', { x: 0.95, y: 2.24, w: 5.2, h: 0.35, margin: 0,
+    fontFace: HEAD, fontSize: 16, bold: true, color: C.ink });
+  const share = [['Pi platform', 53.0, C.forest2], ['MQ-2 heater', 45.4, C.ember],
+                 ['LoRa radio', 1.2, C.sky], ['DHT22', 0.5, 'C6CFC8']];
+  share.forEach((r, i) => {
+    const y = 2.72 + i * 0.42;
+    s.addText(r[0], { x: 0.95, y, w: 1.9, h: 0.3, margin: 0,
+      fontFace: BODY, fontSize: 12, color: C.muted });
+    s.addShape(pres.ShapeType.roundRect, {
+      x: 2.95, y: y + 0.07, w: Math.max(0.05, 2.5 * r[1] / 53), h: 0.18,
+      rectRadius: 0.04, fill: { color: r[2] } });
+    s.addText(r[1] + '%', { x: 5.6, y, w: 0.6, h: 0.3, margin: 0, align: 'right',
+      fontFace: BODY, fontSize: 12, bold: true, color: C.ink });
   });
 
-  card(s, 6.9, 4.2, 5.8, 2.45, C.white);
-  s.addText('Rotation delays the first death by 45%', {
-    x: 7.25, y: 4.45, w: 5.1, h: 0.4, margin: 0,
-    fontFace: BODY, fontSize: 14, bold: true, color: C.ink });
-  s.addText('Head-duty spread also falls sharply — σ 28.4 with rotation against 72.6 ' +
-    'without.\n\nBut half-network death barely moves: round 317 versus 320. ' +
-    'Rotation EQUALISES node lifetime rather than extending total network life — ' +
-    'which is precisely its purpose, and a more informative result than a uniform ' +
-    'improvement would have been.', {
-    x: 7.25, y: 4.9, w: 5.1, h: 1.6, margin: 0,
-    fontFace: BODY, fontSize: 11.5, color: C.muted, lineSpacing: 16 });
+  card(s, 6.8, 2.0, 5.7, 2.5, C.forest2);
+  s.addText('RQ5 — is the standard model valid here?', {
+    x: 7.15, y: 2.24, w: 5.0, h: 0.6, margin: 0,
+    fontFace: HEAD, fontSize: 16, bold: true, color: C.white, lineSpacing: 20 });
+  s.addText('Applied unmodified it predicted ZERO node deaths in 400 rounds.', {
+    x: 7.15, y: 2.85, w: 5.0, h: 0.5, margin: 0,
+    fontFace: BODY, fontSize: 12.5, color: C.moss2, lineSpacing: 17 });
+  s.addText('1450x', { x: 7.15, y: 3.35, w: 2.4, h: 0.65, margin: 0,
+    fontFace: HEAD, fontSize: 36, bold: true, color: C.ember });
+  s.addText('overstatement of\nbattery life', { x: 9.6, y: 3.45, w: 2.6, h: 0.6, margin: 0,
+    fontFace: BODY, fontSize: 11.5, color: C.moss2, lineSpacing: 15 });
+  s.addText('Answer: no. A Pi is not a mote.', {
+    x: 7.15, y: 4.08, w: 5.0, h: 0.3, margin: 0,
+    fontFace: BODY, fontSize: 12, bold: true, color: C.white });
 
-  s.addNotes('Two things here. The energy model correction — a Pi is not a mote, ' +
-    'and duty cycling is the whole story. And the rotation result, where the ' +
-    'interesting part is what it does NOT do: total network lifetime is unchanged.');
+  // RQ7 scenarios
+  card(s, 0.6, 4.75, 11.9, 1.95, C.white);
+  s.addText('RQ7 — is battery operation viable?', {
+    x: 0.95, y: 4.98, w: 6.0, h: 0.35, margin: 0,
+    fontFace: HEAD, fontSize: 16, bold: true, color: C.ink });
+
+  const scen = [['As built', '2.7 h', C.alert], ['Radio sleep OFF', '2.6 h', C.alert],
+                ['No MQ-2', '7.0 h', C.warnc || C.moss], ['MCU + no MQ-2', '21.8 h', C.moss]];
+  scen.forEach((sc, i) => {
+    const x = 0.95 + i * 2.95;
+    s.addText(sc[0], { x, y: 5.45, w: 2.7, h: 0.3, margin: 0,
+      fontFace: BODY, fontSize: 11.5, color: C.muted });
+    s.addText(sc[1], { x, y: 5.72, w: 2.7, h: 0.45, margin: 0,
+      fontFace: HEAD, fontSize: 24, bold: true, color: sc[2] });
+  });
+  s.addText('Disabling the radio sleep — the mechanism this project is built around — ' +
+    'costs 4%. Removing the gas sensor is worth 3x. NOT viable as built, and the ' +
+    'blocker is not the network.', {
+    x: 0.95, y: 6.22, w: 11.2, h: 0.4, margin: 0,
+    fontFace: BODY, fontSize: 11.5, italic: true, color: C.muted });
+
+  s.addNotes('This is the strongest negative result. The radio is 1.2% of node ' +
+    'power, so TDMA sleep — the centre of this project — is worth 4%. If asked ' +
+    'whether that invalidates the work: no, it relocates it. The networking ' +
+    'contribution stands; the energy claim has to be about the whole node.');
 }
 
 // =========================================================================
@@ -844,9 +850,14 @@ function bullets(s, items, x, y, w, h, size, color) {
     'Cluster B correctly partitioned and buffered — no algorithm can cross a physical partition'
   ], 7.95, 4.5, 4.3, 2.2, 11, C.moss2);
 
-  s.addNotes('Headline numbers. If asked about the partition case — that is correct ' +
-    'behaviour, not a failure. CH-B can only hear CH-A and node 5, so when CH-A dies ' +
-    'cluster B is physically cut off. Buffering is the right answer.');
+  s.addText('Every figure regenerated by  python3 pi/tools/experiments.py', {
+    x: 0.7, y: 6.85, w: 11.9, h: 0.35, margin: 0, align: 'center',
+    fontFace: BODY, fontSize: 11, italic: true, color: C.moss });
+
+  s.addNotes('Headline numbers. Point at the footer: these are reproducible from ' +
+    'the repo, not copied from a notebook. If asked about the partition case — ' +
+    'that is correct behaviour, not a failure. CH-B can only hear CH-A and node 5, ' +
+    'so when CH-A dies cluster B is physically cut off. Buffering is the right answer.');
 }
 
 // =========================================================================

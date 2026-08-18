@@ -182,6 +182,39 @@ HEAD_MISS_LIMIT = int(os.environ.get('HEAD_MISS_LIMIT', 3))
 # Set to 0 to latch HALT until explicitly resumed. Not recommended.
 HALT_EXPIRY_FRAMES = int(os.environ.get('HALT_EXPIRY_FRAMES', 30))
 
+# --------------------------------------------------------- power budget ----
+#
+# Whole-node power characterisation. These are the numbers behind the energy
+# claims in the report, kept here so tools/energy.py and tools/experiments.py
+# share one source rather than each carrying its own copy.
+#
+# The important thing they encode: on this hardware the RADIO IS NOT THE
+# DOMINANT LOAD. A 16-byte packet costs a few millijoules; the SoC costs watts.
+# Any analysis that models only the transceiver — as the standard first-order
+# WSN radio model does — will overstate battery life by orders of magnitude.
+#
+# Datasheet-order figures. Replace with measured values once you have a meter
+# on the rail; tools/energy.py reports which figures it used.
+
+ACTIVE_POWER_W = float(os.environ.get('ACTIVE_POWER_W', 2.1))    # Pi 4, awake
+SLEEP_POWER_W = float(os.environ.get('SLEEP_POWER_W', 0.35))     # Pi 4, idle floor
+
+# The MQ-2's heating element. Continuous, and it cannot be usefully duty-cycled
+# because the element needs a long preheat before readings stabilise. At 750 mW
+# it exceeds the entire radio budget AND the Pi's own sleep floor — which is why
+# the report treats battery viability (RQ7) as an open question with a
+# discouraging answer.
+MQ2_HEATER_W = float(os.environ.get('MQ2_HEATER_W', 0.75))
+DHT22_W = float(os.environ.get('DHT22_W', 0.0075))               # negligible, listed for completeness
+
+# Radio, from the module datasheet.
+RADIO_TX_W = float(os.environ.get('RADIO_TX_W', 0.5))            # ~100 mA at 5 V
+RADIO_RX_W = float(os.environ.get('RADIO_RX_W', 0.055))          # ~11 mA
+RADIO_SLEEP_W = float(os.environ.get('RADIO_SLEEP_W', 1e-5))     # ~2 uA
+
+# Usable energy in a node's cells. 12 kJ is roughly a 3.3 Wh pack.
+BATTERY_J = float(os.environ.get('BATTERY_J', 12000.0))
+
 # ------------------------------------------------------------- energy ------
 #
 # Radios sleep outside their own slots. Duty cycle per role, one 60 s frame:
